@@ -45,18 +45,7 @@ class GUID(TypeDecorator):
 
 def get_database_url():
     """Get database URL - supports PostgreSQL and SQLite for development."""
-    db_url = settings.DATABASE_URL
-    
-    # Check if we should use SQLite (development mode)
-    if "sqlite" in db_url.lower():
-        return db_url
-    
-    # Default to SQLite for local development without Docker
-    if settings.ENVIRONMENT == "development":
-        # Check if PostgreSQL is available by trying to connect
-        return "sqlite+aiosqlite:///./recovery_companion.db"
-    
-    return db_url
+    return settings.DATABASE_URL
 
 
 # Create engine with appropriate settings
@@ -66,7 +55,7 @@ if "sqlite" in db_url:
     # SQLite configuration - no pool needed
     engine = create_async_engine(
         db_url,
-        echo=settings.ENVIRONMENT == "development",
+        echo=False,
         connect_args={"check_same_thread": False},
     )
 else:
@@ -76,7 +65,7 @@ else:
         pool_size=settings.DATABASE_POOL_SIZE,
         max_overflow=settings.DATABASE_MAX_OVERFLOW,
         pool_pre_ping=True,
-        echo=settings.ENVIRONMENT == "development",
+        echo=False,
     )
 
 AsyncSessionLocal = async_sessionmaker(

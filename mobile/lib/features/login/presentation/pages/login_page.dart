@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/config/api_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -30,14 +31,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       final authService = ref.read(authServiceProvider);
-      
+
       if (_isLogin) {
-        await authService.login(_emailController.text, _passwordController.text);
+        await authService.login(
+            _emailController.text, _passwordController.text);
       } else {
         await authService.register(
           fullName: _nameController.text,
@@ -45,9 +47,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           password: _passwordController.text,
         );
       }
-      
+
       ref.invalidate(authStateProvider);
-      
+
       if (mounted) {
         context.go('/home');
       }
@@ -65,6 +67,48 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _chooseServer() async {
+    final prefs = ref.read(userPrefsBoxProvider);
+    final form = GlobalKey<FormState>();
+    var address = ref.read(apiClientProvider).baseUrl;
+    final selected = await showDialog<String>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+                title: const Text('Clinic server'),
+                content: Form(
+                    key: form,
+                    child: TextFormField(
+                        initialValue: address,
+                        keyboardType: TextInputType.url,
+                        decoration: const InputDecoration(
+                            labelText: 'Server address',
+                            helperText:
+                                'Use the address supplied by your clinic.'),
+                        onChanged: (value) => address = value,
+                        validator: (value) =>
+                            ApiConfig.origin(value ?? '') == null
+                                ? 'Enter an HTTPS address or local test server.'
+                                : null)),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dialog),
+                      child: const Text('Cancel')),
+                  FilledButton(
+                      onPressed: () {
+                        if (form.currentState!.validate())
+                          Navigator.pop(dialog, ApiConfig.origin(address));
+                      },
+                      child: const Text('Use server'))
+                ]));
+    if (!mounted ||
+        selected == null ||
+        selected == ref.read(apiClientProvider).baseUrl) return;
+    await prefs.put('server', selected);
+    if (!mounted) return;
+    _passwordController.clear();
+    ref.invalidate(apiClientProvider);
   }
 
   @override
@@ -103,14 +147,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _isLogin 
-                    ? 'Continue your recovery journey' 
-                    : 'Begin your recovery journey',
+                  _isLogin
+                      ? 'Continue your recovery journey'
+                      : 'Begin your recovery journey',
                   style: AppTextStyles.body(color: AppColors.textMid),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
-                
+
                 // Name field (register only)
                 if (!_isLogin) ...[
                   TextFormField(
@@ -129,7 +173,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                
+
                 // Email field
                 TextFormField(
                   controller: _emailController,
@@ -150,7 +194,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Password field
                 TextFormField(
                   controller: _passwordController,
@@ -170,30 +214,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   },
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Submit button
                 ElevatedButton(
                   onPressed: _isLoading ? null : _submit,
                   child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(_isLogin ? 'Sign in' : 'Create account'),
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(_isLogin ? 'Sign in' : 'Create account'),
                 ),
                 const SizedBox(height: 16),
-                
+
+                TextButton.icon(
+                    onPressed: _isLoading ? null : _chooseServer,
+                    icon: const Icon(Icons.dns_outlined),
+                    label: Text(ref.watch(apiClientProvider).baseUrl)),
                 // Toggle login/register
                 TextButton(
                   onPressed: () => setState(() => _isLogin = !_isLogin),
                   child: Text(
-                    _isLogin 
-                      ? "Don't have an account? Sign up"
-                      : 'Already have an account? Sign in',
+                    _isLogin
+                        ? "Don't have an account? Sign up"
+                        : 'Already have an account? Sign in',
                   ),
                 ),
               ],

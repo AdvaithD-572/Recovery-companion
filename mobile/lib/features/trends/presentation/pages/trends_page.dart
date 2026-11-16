@@ -7,7 +7,7 @@ import '../../../../core/di/providers.dart';
 
 class TrendsPage extends ConsumerStatefulWidget {
   final String metric;
-  
+
   const TrendsPage({super.key, required this.metric});
 
   @override
@@ -34,18 +34,25 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
 
   IconData _getIcon(String iconName) {
     switch (iconName) {
-      case 'healing': return Icons.healing_outlined;
-      case 'bolt': return Icons.bolt_outlined;
-      case 'restaurant': return Icons.restaurant_outlined;
-      case 'bedtime': return Icons.bedtime_outlined;
-      case 'mood': return Icons.mood_outlined;
-      default: return Icons.show_chart;
+      case 'healing':
+        return Icons.healing_outlined;
+      case 'bolt':
+        return Icons.bolt_outlined;
+      case 'restaurant':
+        return Icons.restaurant_outlined;
+      case 'bedtime':
+        return Icons.bedtime_outlined;
+      case 'mood':
+        return Icons.mood_outlined;
+      default:
+        return Icons.show_chart;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final trendsAsync = ref.watch(trendsProvider(_selectedMetric));
+    final trendsAsync =
+        ref.watch(trendsProvider((_selectedMetric, _selectedDays)));
 
     return Scaffold(
       appBar: AppBar(
@@ -58,22 +65,25 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Row(
-              children: _metrics.map((m) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_getIcon(m['icon']!), size: 16),
-                      const SizedBox(width: 4),
-                      Text(m['name']!),
-                    ],
-                  ),
-                  selected: _selectedMetric == m['key'],
-                  onSelected: (_) => setState(() => _selectedMetric = m['key']!),
-                  selectedColor: AppColors.sagePale,
-                ),
-              )).toList(),
+              children: _metrics
+                  .map((m) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(_getIcon(m['icon']!), size: 16),
+                              const SizedBox(width: 4),
+                              Text(m['name']!),
+                            ],
+                          ),
+                          selected: _selectedMetric == m['key'],
+                          onSelected: (_) =>
+                              setState(() => _selectedMetric = m['key']!),
+                          selectedColor: AppColors.sagePale,
+                        ),
+                      ))
+                  .toList(),
             ),
           ),
 
@@ -81,15 +91,18 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
-              children: [7, 14, 30].map((days) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text('$days days'),
-                  selected: _selectedDays == days,
-                  onSelected: (_) => setState(() => _selectedDays = days),
-                  selectedColor: AppColors.sagePale,
-                ),
-              )).toList(),
+              children: [7, 14, 30]
+                  .map((days) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text('$days days'),
+                          selected: _selectedDays == days,
+                          onSelected: (_) =>
+                              setState(() => _selectedDays = days),
+                          selectedColor: AppColors.sagePale,
+                        ),
+                      ))
+                  .toList(),
             ),
           ),
 
@@ -100,7 +113,8 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
             child: trendsAsync.when(
               data: (data) => _buildChart(data),
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Center(child: Text('Failed to load trends')),
+              error: (_, __) =>
+                  const Center(child: Text('Failed to load trends')),
             ),
           ),
         ],
@@ -117,9 +131,11 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
           children: [
             Icon(Icons.show_chart, size: 64, color: AppColors.textLight),
             const SizedBox(height: 16),
-            Text('No data yet', style: AppTextStyles.body(color: AppColors.textMid)),
+            Text('No data yet',
+                style: AppTextStyles.body(color: AppColors.textMid)),
             const SizedBox(height: 8),
-            Text('Complete your daily check-ins to see trends', style: AppTextStyles.caption()),
+            Text('Complete your daily check-ins to see trends',
+                style: AppTextStyles.caption()),
           ],
         ),
       );
@@ -128,19 +144,20 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
     // Convert data points to chart spots
     final actualSpots = <FlSpot>[];
     final expectedSpots = <FlSpot>[];
-    
+
     for (int i = 0; i < dataPoints.length; i++) {
       final dp = dataPoints[i];
       if (dp['actual'] != null) {
         actualSpots.add(FlSpot(i.toDouble(), (dp['actual'] as num).toDouble()));
       }
       if (dp['expected'] != null) {
-        expectedSpots.add(FlSpot(i.toDouble(), (dp['expected'] as num).toDouble()));
+        expectedSpots
+            .add(FlSpot(i.toDouble(), (dp['expected'] as num).toDouble()));
       }
     }
 
     final currentLevel = data['current_level'] ?? 0;
-    
+
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -151,11 +168,12 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
             children: [
               _buildLegendItem('Your progress', AppColors.sage),
               const SizedBox(width: 24),
-              _buildLegendItem('Expected', AppColors.textLight),
+              if (expectedSpots.isNotEmpty)
+                _buildLegendItem('Reference', AppColors.textLight),
             ],
           ),
           const SizedBox(height: 32),
-          
+
           // Chart
           Expanded(
             child: LineChart(
@@ -181,9 +199,12 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
                       ),
                     ),
                   ),
-                  bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
                 ),
                 borderData: FlBorderData(show: false),
                 minY: 0,
@@ -210,7 +231,8 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
                       isStrokeCapRound: true,
                       dotData: FlDotData(
                         show: true,
-                        getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
+                        getDotPainter: (spot, percent, bar, index) =>
+                            FlDotCirclePainter(
                           radius: 4,
                           color: AppColors.sage,
                           strokeWidth: 2,
@@ -226,32 +248,38 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
               ),
             ),
           ),
-          
+
           // Status indicator
           if (currentLevel > 0) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: currentLevel == 3 
-                  ? AppColors.cautionPale 
-                  : (currentLevel == 2 ? AppColors.bluePale : AppColors.sagePale),
+                color: currentLevel == 3
+                    ? AppColors.cautionPale
+                    : (currentLevel == 2
+                        ? AppColors.bluePale
+                        : AppColors.sagePale),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 children: [
                   Icon(
                     currentLevel >= 2 ? Icons.info_outline : Icons.trending_up,
-                    color: currentLevel == 3 ? AppColors.caution : (currentLevel == 2 ? AppColors.blue : AppColors.sage),
+                    color: currentLevel == 3
+                        ? AppColors.caution
+                        : (currentLevel == 2 ? AppColors.blue : AppColors.sage),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       _getLevelMessage(currentLevel),
                       style: AppTextStyles.body(
-                        color: currentLevel == 3 
-                          ? AppColors.caution 
-                          : (currentLevel == 2 ? AppColors.blue : AppColors.sage),
+                        color: currentLevel == 3
+                            ? AppColors.caution
+                            : (currentLevel == 2
+                                ? AppColors.blue
+                                : AppColors.sage),
                       ),
                     ),
                   ),
@@ -268,7 +296,8 @@ class _TrendsPageState extends ConsumerState<TrendsPage> {
     return Row(
       children: [
         Container(
-          width: 12, height: 12,
+          width: 12,
+          height: 12,
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,

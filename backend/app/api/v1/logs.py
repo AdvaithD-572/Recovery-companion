@@ -1,6 +1,6 @@
 from uuid import UUID
-from datetime import date, timedelta
-from typing import List, Optional, Union
+from datetime import date, datetime, timedelta, timezone
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,10 +8,8 @@ from sqlalchemy import select, and_
 
 from app.core.database import get_db
 from app.core.security import get_current_patient
-from app.models import Patient, DailyLog, DigitalTwin
+from app.models import Patient, DailyLog
 from app.schemas import DailyLogCreate, DailyLogResponse, TrendResponse, TrendDataPoint
-from app.services.twin_service import get_expected_range
-from app.tasks import analyze_trend_task
 
 router = APIRouter()
 
@@ -33,13 +31,11 @@ async def submit_daily_log(
 
     log = DailyLog(
         patient_id=patient.id,
+        created_at=datetime.now(timezone.utc),
         **payload.model_dump(),
     )
     db.add(log)
     await db.flush()
-
-    # Queue async trend analysis — don't block the response
-    analyze_trend_task.delay(str(patient.id), str(log.id))
 
     return DailyLogResponse.model_validate(log)
 
@@ -50,7 +46,7 @@ async def get_daily_logs(
     patient: Patient = Depends(get_current_patient),
     db: AsyncSession = Depends(get_db),
 ):
-    since = date.today() - timedelta(days=days)
+    since = date.today() - timedelta(days=days - 1)
     result = await db.execute(
         select(DailyLog)
         .where(and_(DailyLog.patient_id == patient.id, DailyLog.log_date >= since))
@@ -87,7 +83,7 @@ async def get_trends(
     if not hasattr(DailyLog, score_attr):
         raise HTTPException(status_code=400, detail="Invalid metric")
 
-    since = date.today() - timedelta(days=days)
+    since = date.today() - timedelta(days=days - 1)
     result = await db.execute(
         select(DailyLog)
         .where(and_(DailyLog.patient_id == patient.id, DailyLog.log_date >= since))
@@ -98,42 +94,9 @@ async def get_trends(
     if not logs:
         return TrendResponse(metric=metric, data=[], current_level=0)
 
-    # Get digital twin
-    twin_result = await db.execute(
-        select(DigitalTwin).where(DigitalTwin.patient_id == patient.id)
-    )
-    twin = twin_result.scalar_one_or_none()
-
-    data_points = []
-    current_level = 0
-
-    for log in logs:
-        actual = getattr(log, score_attr, None)
-        day_num = (log.log_date - patient.discharge_date).days + 1 if patient.discharge_date else 1
-        expected_range = get_expected_range(twin, metric, day_num) if twin else None
-
-        deviation = None
-        if actual is not None and expected_range:
-            deviation = round(float(actual) - expected_range["expected"], 2)
-            
-            # Calculate escalation level based on deviation
-            abs_deviation = abs(deviation)
-            if abs_deviation > 3:
-                current_level = max(current_level, 3)
-            elif abs_deviation > 2:
-                current_level = max(current_level, 2)
-            elif abs_deviation > 1:
-                current_level = max(current_level, 1)
-
-        point = TrendDataPoint(
-            date=log.log_date,
-            actual=float(actual) if actual is not None else None,
-            expected=expected_range["expected"] if expected_range else None,
-            deviation=deviation,
-        )
-        data_points.append(point)
-
-    return TrendResponse(metric=metric, data=data_points, current_level=current_level)
+    points = [TrendDataPoint(date=log.log_date, actual=getattr(log,score_attr,None),
+                            expected=None, deviation=None) for log in logs]
+    return TrendResponse(metric=metric,data=points,current_level=0)
 
 
 @router.patch("/daily/{log_id}/clarify")
@@ -143,7 +106,7 @@ async def clarify_log(
     patient: Patient = Depends(get_current_patient),
     db: AsyncSession = Depends(get_db),
 ):
-    """Patient adds context to a logged day — can suppress a false escalation flag."""
+    """Append patient context to a logged day for staff review."""
     note = payload.get("note", "")
     
     result = await db.execute(
@@ -172,6 +135,5 @@ async def clarify_log(
     for flag in flags_result.scalars().all():
         flag.clarified_by_user = True
         flag.user_clarification = note
-        flag.suppressed = True
 
     return {"status": "ok", "message": "Context saved. Thank you for letting us know."}

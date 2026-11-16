@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/services/device_reminders.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -25,6 +26,8 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     try {
       final apiClient = ref.read(apiClientProvider);
       final response = await apiClient.get('/api/v1/reminders/');
+      await DeviceReminders.apply(List<Map<String, dynamic>>.from(response));
+      if (!mounted) return;
       setState(() {
         _reminders = List<Map<String, dynamic>>.from(response ?? []);
         _isLoading = false;
@@ -41,16 +44,36 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
         title: const Text('Reminders'),
         actions: [
           IconButton(
+              tooltip: 'Enable device notifications',
+              icon: const Icon(Icons.notifications_active_outlined),
+              onPressed: () async {
+                try {
+                  final ok = await DeviceReminders.apply(_reminders, ask: true);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(ok
+                            ? 'Device reminders enabled'
+                            : 'Notification permission unavailable')));
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text(e.toString())));
+                  }
+                }
+              }),
+          IconButton(
+            tooltip: 'Add reminder',
             icon: const Icon(Icons.add),
             onPressed: _showAddReminder,
           ),
         ],
       ),
       body: _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : _reminders.isEmpty
-          ? _buildEmptyState()
-          : _buildRemindersList(),
+          ? const Center(child: CircularProgressIndicator())
+          : _reminders.isEmpty
+              ? _buildEmptyState()
+              : _buildRemindersList(),
     );
   }
 
@@ -62,12 +85,14 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 80, height: 80,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 color: AppColors.sagePale,
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: const Icon(Icons.notifications_outlined, color: AppColors.sage, size: 40),
+              child: const Icon(Icons.notifications_outlined,
+                  color: AppColors.sage, size: 40),
             ),
             const SizedBox(height: 24),
             Text('No reminders yet', style: AppTextStyles.heading()),
@@ -105,7 +130,8 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   }
 
   List<Widget> _buildReminderGroup(String title, String type) {
-    final reminders = _reminders.where((r) => r['reminder_type'] == type).toList();
+    final reminders =
+        _reminders.where((r) => r['reminder_type'] == type).toList();
     if (reminders.isEmpty) return [];
 
     return [
@@ -131,7 +157,8 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
       child: Row(
         children: [
           Container(
-            width: 48, height: 48,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: isActive ? AppColors.sagePale : AppColors.cream,
               borderRadius: BorderRadius.circular(12),
@@ -147,7 +174,9 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  scheduledTime.isNotEmpty ? _formatTime(scheduledTime) : 'Not set',
+                  scheduledTime.isNotEmpty
+                      ? _formatTime(scheduledTime)
+                      : 'Not set',
                   style: AppTextStyles.body(weight: FontWeight.w600),
                 ),
                 Text(
@@ -169,13 +198,20 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
 
   IconData _getReminderIcon(String? type) {
     switch (type) {
-      case 'medicine': return Icons.medication;
-      case 'water': return Icons.water_drop;
-      case 'meal': return Icons.restaurant;
-      case 'exercise': return Icons.directions_run;
-      case 'checkin': return Icons.edit_note;
-      case 'refill': return Icons.refresh;
-      default: return Icons.notifications;
+      case 'medicine':
+        return Icons.medication;
+      case 'water':
+        return Icons.water_drop;
+      case 'meal':
+        return Icons.restaurant;
+      case 'exercise':
+        return Icons.directions_run;
+      case 'checkin':
+        return Icons.edit_note;
+      case 'refill':
+        return Icons.refresh;
+      default:
+        return Icons.notifications;
     }
   }
 
@@ -195,7 +231,7 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   String _formatDays(List days) {
     if (days.isEmpty) return 'Not set';
     if (days.length == 7) return 'Every day';
-    
+
     final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return days.map((d) => dayNames[d as int]).join(', ');
   }
@@ -238,12 +274,15 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                     {'type': 'meal', 'label': 'Meal'},
                     {'type': 'exercise', 'label': 'Exercise'},
                     {'type': 'checkin', 'label': 'Check-in'},
-                  ].map((item) => ChoiceChip(
-                    label: Text(item['label']!),
-                    selected: selectedType == item['type'],
-                    onSelected: (_) => setModalState(() => selectedType = item['type']!),
-                    selectedColor: AppColors.sagePale,
-                  )).toList(),
+                  ]
+                      .map((item) => ChoiceChip(
+                            label: Text(item['label']!),
+                            selected: selectedType == item['type'],
+                            onSelected: (_) => setModalState(
+                                () => selectedType = item['type']!),
+                            selectedColor: AppColors.sagePale,
+                          ))
+                      .toList(),
                 ),
                 const SizedBox(height: 24),
 
@@ -269,7 +308,8 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(selectedTime.format(context), style: AppTextStyles.body()),
+                        Text(selectedTime.format(context),
+                            style: AppTextStyles.body()),
                         const Icon(Icons.access_time, color: AppColors.textMid),
                       ],
                     ),
@@ -282,20 +322,24 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
-                  children: ['M', 'T', 'W', 'T', 'F', 'S', 'S'].asMap().entries.map((entry) => FilterChip(
-                    label: Text(entry.value),
-                    selected: selectedDays.contains(entry.key),
-                    onSelected: (selected) {
-                      setModalState(() {
-                        if (selected) {
-                          selectedDays.add(entry.key);
-                        } else {
-                          selectedDays.remove(entry.key);
-                        }
-                      });
-                    },
-                    selectedColor: AppColors.sagePale,
-                  )).toList(),
+                  children: ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+                      .asMap()
+                      .entries
+                      .map((entry) => FilterChip(
+                            label: Text(entry.value),
+                            selected: selectedDays.contains(entry.key),
+                            onSelected: (selected) {
+                              setModalState(() {
+                                if (selected) {
+                                  selectedDays.add(entry.key);
+                                } else {
+                                  selectedDays.remove(entry.key);
+                                }
+                              });
+                            },
+                            selectedColor: AppColors.sagePale,
+                          ))
+                      .toList(),
                 ),
                 const SizedBox(height: 24),
 
@@ -307,7 +351,8 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
                         final apiClient = ref.read(apiClientProvider);
                         await apiClient.post('/api/v1/reminders/', body: {
                           'reminder_type': selectedType,
-                          'scheduled_time': '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
+                          'scheduled_time':
+                              '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
                           'days_of_week': selectedDays,
                           'is_active': true,
                         });
@@ -335,7 +380,8 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
   Future<void> _toggleReminder(String id, bool isActive) async {
     try {
       final apiClient = ref.read(apiClientProvider);
-      await apiClient.patch('/api/v1/reminders/$id', body: {'is_active': isActive});
+      await apiClient
+          .patch('/api/v1/reminders/$id', body: {'is_active': isActive});
       _loadReminders();
     } catch (e) {
       if (mounted) {

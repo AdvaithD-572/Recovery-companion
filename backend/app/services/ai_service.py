@@ -19,6 +19,7 @@ from google.genai import types
 import httpx
 
 from app.core.config import settings
+from app.core.gemini import client as gemini_client
 from app.models import Patient, DigitalTwin, DailyLog
 
 
@@ -44,8 +45,8 @@ Tone: warm, unhurried, conversational — like a knowledgeable friend.
 
 class AIOrchestrator:
     def __init__(self):
-        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        self.model = 'gemini-2.5-flash'
+        self.client = gemini_client()
+        self.model = settings.GEMINI_MODEL
 
     async def generate_patient_insight(
         self,

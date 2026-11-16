@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update, case
 
 from app.core.database import get_db
 from app.core.security import get_current_patient
@@ -63,7 +63,7 @@ async def add_prescription(
     return PrescriptionResponse.model_validate(rx)
 
 
-@router.post("/scan-ocr", response_model=List[PrescriptionResponse])
+@router.post("/scan-ocr")
 async def scan_prescription_ocr(
     file: UploadFile = File(...),
     patient: Patient = Depends(get_current_patient),
@@ -71,17 +71,20 @@ async def scan_prescription_ocr(
 ):
     """OCR a prescription image and extract medication list."""
     from app.services.ai_service import AIOrchestrator
-    from app.utils.s3 import upload_to_s3
 
     from google.genai import types
 
-    image_bytes = await file.read()
+    if file.content_type not in {"image/jpeg","image/png","image/webp"}:
+        raise HTTPException(415,"Upload a JPEG, PNG or WebP image")
+    image_bytes = await file.read(10 * 1024 * 1024 + 1)
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(413,"Image exceeds 10 MB")
     ai = AIOrchestrator()
 
     prompt = """Extract all medications from this prescription.
 Return ONLY JSON array:
 [{"drug_name": "...", "dosage": "...", "frequency": {"times": ["08:00"], "condition": null}, "is_compulsory": true, "duration_days": 7}]
-If dosage unclear, use "as prescribed". If frequency unclear, use {"times": ["08:00"], "condition": null}."""
+Leave unclear fields empty. Do not guess a dose, time, or duration."""
 
     response = ai.client.models.generate_content(
         model=ai.model,
@@ -98,26 +101,8 @@ If dosage unclear, use "as prescribed". If frequency unclear, use {"times": ["08
     except:
         medications = []
 
-    created = []
-    from datetime import date, timedelta
-    for med in medications:
-        duration = med.pop('duration_days', 14)
-        rx = Prescription(
-            patient_id=patient.id,
-            drug_name=med.get('drug_name', 'Unknown'),
-            dosage=med.get('dosage', 'As prescribed'),
-            frequency=med.get('frequency', {"times": ["08:00"]}),
-            is_compulsory=med.get('is_compulsory', True),
-            total_doses_bought=duration * len(med.get('frequency', {}).get('times', ['08:00'])),
-            doses_remaining=duration * len(med.get('frequency', {}).get('times', ['08:00'])),
-            start_date=date.today(),
-            end_date=date.today() + timedelta(days=duration),
-        )
-        db.add(rx)
-        await db.flush()
-        created.append(PrescriptionResponse.model_validate(rx))
-
-    return created
+    return [{"drug_name": str(m.get("drug_name") or ""), "dosage": str(m.get("dosage") or ""),
+             "requires_review": True} for m in medications if isinstance(m, dict)]
 
 
 @router.post("/dose-log", status_code=201)
@@ -125,6 +110,7 @@ async def log_dose(
     payload: DoseLogCreate,
     patient: Patient = Depends(get_current_patient),
     db: AsyncSession = Depends(get_db),
+    occurred: datetime | None = None,
 ):
     # Verify prescription belongs to patient
     result = await db.execute(
@@ -136,18 +122,33 @@ async def log_dose(
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
 
+    if rx.is_compulsory:
+        from app.care import Entry
+        from uuid import uuid5, NAMESPACE_URL
+        from sqlalchemy.exc import IntegrityError
+        stamp = payload.scheduled_time
+        stamp = stamp.replace(tzinfo=timezone.utc) if stamp.tzinfo is None else stamp.astimezone(timezone.utc)
+        occurrence = uuid5(NAMESPACE_URL, f"recovery-dose:{rx.id}:{stamp.isoformat()}")
+        db.add(Entry(id=occurrence,patient=patient.id,kind="occurrence",actor=str(patient.id),data={}))
+        try:
+            await db.flush()
+        except IntegrityError:
+            raise HTTPException(409, "This scheduled dose already has an entry")
     dose_log = DoseLog(
+        created_at=datetime.now(timezone.utc),
         prescription_id=payload.prescription_id,
         patient_id=patient.id,
         scheduled_time=payload.scheduled_time,
-        taken_at=datetime.now(timezone.utc) if payload.taken else None,
+        taken_at=(occurred or datetime.now(timezone.utc)) if payload.taken else None,
         skipped=not payload.taken,
         skip_reason=payload.skip_reason,
     )
     db.add(dose_log)
 
     # Decrement remaining doses
-    if payload.taken and rx.doses_remaining > 0:
-        rx.doses_remaining -= 1
+    if payload.taken:
+        await db.execute(update(Prescription).where(Prescription.id == rx.id).values(
+            doses_remaining=case((Prescription.doses_remaining > 0, Prescription.doses_remaining-1),else_=0)))
+        await db.refresh(rx)
 
     return {"status": "ok", "doses_remaining": rx.doses_remaining}

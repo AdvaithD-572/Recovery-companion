@@ -1,9 +1,18 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/di/providers.dart';
+
+final diarySyncProvider = StreamProvider.autoDispose<int>((ref) async* {
+  final api = watchPatientClient(ref);
+  while (true) {
+    yield await api.syncDiary();
+    await Future<void>.delayed(const Duration(seconds: 30));
+  }
+});
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -37,12 +46,15 @@ class HomePage extends ConsumerWidget {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Hello!', style: AppTextStyles.heading(size: 28)),
+                              Text('Hello!',
+                                  style: AppTextStyles.heading(size: 28)),
                               patientAsync.when(
                                 data: (patient) => patient != null
-                                  ? Text('Day ${patient['recovery_day'] ?? 1} of recovery',
-                                      style: AppTextStyles.body(color: AppColors.textMid))
-                                  : const SizedBox(),
+                                    ? Text(
+                                        'Day ${patient['recovery_day'] ?? 1} of recovery',
+                                        style: AppTextStyles.body(
+                                            color: AppColors.textMid))
+                                    : const SizedBox(),
                                 loading: () => const SizedBox(),
                                 error: (_, __) => const SizedBox(),
                               ),
@@ -51,12 +63,15 @@ class HomePage extends ConsumerWidget {
                           GestureDetector(
                             onTap: () => context.push('/profile'),
                             child: Container(
-                              width: 48, height: 48,
+                              width: 48,
+                              height: 48,
                               decoration: BoxDecoration(
                                 color: AppColors.sagePale,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Icon(Icons.person_outline, color: AppColors.sage),
+                              child: const Icon(Icons.person_outline,
+                                  semanticLabel: 'Profile',
+                                  color: AppColors.sage),
                             ),
                           ),
                         ],
@@ -66,6 +81,14 @@ class HomePage extends ConsumerWidget {
                 ),
               ),
 
+              if ((ref.watch(diarySyncProvider).value ?? 0) > 0)
+                SliverToBoxAdapter(
+                    child: ListTile(
+                        title: Text(
+                            '${ref.watch(diarySyncProvider).value} entries pending sync'),
+                        trailing: TextButton(
+                            onPressed: () => ref.invalidate(diarySyncProvider),
+                            child: const Text('Retry')))),
               // Daily Check-in Card
               SliverToBoxAdapter(
                 child: Padding(
@@ -76,6 +99,14 @@ class HomePage extends ConsumerWidget {
 
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
+              SliverToBoxAdapter(
+                  child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: OutlinedButton.icon(
+                          icon: const Icon(Icons.medical_information_outlined),
+                          label:
+                              const Text('Care record and attention tracker'),
+                          onPressed: () => context.push('/care')))),
               // Quick Actions
               SliverToBoxAdapter(
                 child: Padding(
@@ -110,6 +141,7 @@ class HomePage extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        tooltip: 'Voice check-in',
         onPressed: () => context.push('/voice'),
         backgroundColor: AppColors.sage,
         child: const Icon(Icons.mic, color: Colors.white),
@@ -117,7 +149,8 @@ class HomePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildCheckInCard(BuildContext context, WidgetRef ref, AsyncValue todayLogAsync) {
+  Widget _buildCheckInCard(
+      BuildContext context, WidgetRef ref, AsyncValue todayLogAsync) {
     final isCompleted = todayLogAsync.maybeWhen(
       data: (log) => log != null,
       orElse: () => false,
@@ -130,8 +163,8 @@ class HomePage extends ConsumerWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: isCompleted
-              ? [AppColors.sage, AppColors.sage.withGreen(180)]
-              : [AppColors.warmWhite, AppColors.cream],
+                ? [AppColors.sage, AppColors.sage.withGreen(180)]
+                : [AppColors.warmWhite, AppColors.cream],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -144,9 +177,12 @@ class HomePage extends ConsumerWidget {
         child: Row(
           children: [
             Container(
-              width: 56, height: 56,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
-                color: isCompleted ? Colors.white.withValues(alpha: 0.2) : AppColors.sagePale,
+                color: isCompleted
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : AppColors.sagePale,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
@@ -162,17 +198,26 @@ class HomePage extends ConsumerWidget {
                 children: [
                   Text(
                     isCompleted ? 'Check-in complete!' : 'Daily check-in',
-                    style: AppTextStyles.body(weight: FontWeight.w600, color: isCompleted ? Colors.white : AppColors.textDark),
+                    style: AppTextStyles.body(
+                        weight: FontWeight.w600,
+                        color: isCompleted ? Colors.white : AppColors.textDark),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    isCompleted ? 'Great job! See you tomorrow' : 'How are you feeling today?',
-                    style: AppTextStyles.caption(color: isCompleted ? Colors.white.withValues(alpha: 0.8) : AppColors.textMid),
+                    isCompleted
+                        ? 'Great job! See you tomorrow'
+                        : 'How are you feeling today?',
+                    style: AppTextStyles.caption(
+                        color: isCompleted
+                            ? Colors.white.withValues(alpha: 0.8)
+                            : AppColors.textMid),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, size: 16, color: isCompleted ? Colors.white : AppColors.textLight),
+            Icon(Icons.arrow_forward_ios,
+                size: 16,
+                color: isCompleted ? Colors.white : AppColors.textLight),
           ],
         ),
       ),
@@ -187,26 +232,42 @@ class HomePage extends ConsumerWidget {
         const SizedBox(height: 12),
         Row(
           children: [
-            _buildActionButton(icon: Icons.medication_outlined, label: 'Medicines', onTap: () => context.push('/prescription')),
+            _buildActionButton(
+                icon: Icons.medication_outlined,
+                label: 'Medicines',
+                onTap: () => context.push('/prescription')),
             const SizedBox(width: 12),
-            _buildActionButton(icon: Icons.restaurant_outlined, label: 'Food', onTap: () => context.push('/food')),
+            _buildActionButton(
+                icon: Icons.restaurant_outlined,
+                label: 'Food',
+                onTap: () => context.push('/food')),
             const SizedBox(width: 12),
-            _buildActionButton(icon: Icons.insights_outlined, label: 'Trends', onTap: () => context.push('/trends/pain')),
+            _buildActionButton(
+                icon: Icons.insights_outlined,
+                label: 'Trends',
+                onTap: () => context.push('/trends/pain')),
             const SizedBox(width: 12),
-            _buildActionButton(icon: Icons.notifications_outlined, label: 'Reminders', onTap: () => context.push('/reminders')),
+            _buildActionButton(
+                icon: Icons.notifications_outlined,
+                label: 'Reminders',
+                onTap: () => context.push('/reminders')),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildActionButton({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _buildActionButton(
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap}) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(color: AppColors.cream, borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(
+              color: AppColors.cream, borderRadius: BorderRadius.circular(16)),
           child: Column(
             children: [
               Icon(icon, color: AppColors.sage, size: 24),
@@ -219,13 +280,19 @@ class HomePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildMedicinesCard(BuildContext context, AsyncValue prescriptionsAsync) {
+  Widget _buildMedicinesCard(
+      BuildContext context, AsyncValue prescriptionsAsync) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,8 +300,11 @@ class HomePage extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Today's medicines", style: AppTextStyles.body(weight: FontWeight.w600)),
-              TextButton(onPressed: () => context.push('/prescription'), child: const Text('View all')),
+              Text("Today's medicines",
+                  style: AppTextStyles.body(weight: FontWeight.w600)),
+              TextButton(
+                  onPressed: () => context.push('/prescription'),
+                  child: const Text('View all')),
             ],
           ),
           const SizedBox(height: 12),
@@ -243,32 +313,49 @@ class HomePage extends ConsumerWidget {
               if (prescriptions.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: Text('No medicines added yet', style: AppTextStyles.caption())),
+                  child: Center(
+                      child: Text('No medicines added yet',
+                          style: AppTextStyles.caption())),
                 );
               }
               return Column(
-                children: prescriptions.take(3).map<Widget>((rx) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8, height: 8,
-                        decoration: BoxDecoration(
-                          color: (rx['is_compulsory'] ?? false) ? AppColors.sage : AppColors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(rx['drug_name'] ?? '', style: AppTextStyles.body())),
-                      Text('${rx['doses_remaining']} doses left',
-                        style: AppTextStyles.caption(color: (rx['needs_refill'] ?? false) ? AppColors.caution : AppColors.textLight)),
-                    ],
-                  ),
-                )).toList(),
+                children: prescriptions
+                    .take(3)
+                    .map<Widget>((rx) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: (rx['is_compulsory'] ?? false)
+                                      ? AppColors.sage
+                                      : AppColors.blue,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                  child: Text(rx['drug_name'] ?? '',
+                                      style: AppTextStyles.body())),
+                              Text('${rx['doses_remaining']} doses left',
+                                  style: AppTextStyles.caption(
+                                      color: (rx['needs_refill'] ?? false)
+                                          ? AppColors.caution
+                                          : AppColors.textLight)),
+                            ],
+                          ),
+                        ))
+                    .toList(),
               );
             },
-            loading: () => const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(strokeWidth: 2))),
-            error: (_, __) => const Padding(padding: EdgeInsets.all(16), child: Text('Failed to load')),
+            loading: () => const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator(strokeWidth: 2))),
+            error: (_, __) => const Padding(
+                padding: EdgeInsets.all(16), child: Text('Failed to load')),
           ),
         ],
       ),
@@ -283,7 +370,12 @@ class HomePage extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,8 +383,11 @@ class HomePage extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Today's meals", style: AppTextStyles.body(weight: FontWeight.w600)),
-              TextButton(onPressed: () => context.push('/food'), child: const Text('Log meal')),
+              Text("Today's meals",
+                  style: AppTextStyles.body(weight: FontWeight.w600)),
+              TextButton(
+                  onPressed: () => context.push('/food'),
+                  child: const Text('Log meal')),
             ],
           ),
           const SizedBox(height: 12),
@@ -304,38 +399,55 @@ class HomePage extends ConsumerWidget {
                   child: Center(
                     child: Column(
                       children: [
-                        const Icon(Icons.camera_alt_outlined, color: AppColors.textLight, size: 32),
+                        const Icon(Icons.camera_alt_outlined,
+                            color: AppColors.textLight, size: 32),
                         const SizedBox(height: 8),
-                        Text('No meals logged today', style: AppTextStyles.caption()),
+                        Text('No meals logged today',
+                            style: AppTextStyles.caption()),
                       ],
                     ),
                   ),
                 );
               }
               return Column(
-                children: logs.take(3).map<Widget>((log) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.bluePale, borderRadius: BorderRadius.circular(8)),
-                        child: Icon(_getMealIcon(log['meal_type']), size: 16, color: AppColors.blue),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          (log['food_items'] as List?)?.map((i) => i['name']).join(', ') ?? '',
-                          style: AppTextStyles.body(), maxLines: 1, overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                )).toList(),
+                children: logs
+                    .take(3)
+                    .map<Widget>((log) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                    color: AppColors.bluePale,
+                                    borderRadius: BorderRadius.circular(8)),
+                                child: Icon(_getMealIcon(log['meal_type']),
+                                    size: 16, color: AppColors.blue),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  (log['food_items'] as List?)
+                                          ?.map((i) => i['name'])
+                                          .join(', ') ??
+                                      '',
+                                  style: AppTextStyles.body(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ))
+                    .toList(),
               );
             },
-            loading: () => const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(strokeWidth: 2))),
-            error: (_, __) => const Padding(padding: EdgeInsets.all(16), child: Text('Failed to load')),
+            loading: () => const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator(strokeWidth: 2))),
+            error: (_, __) => const Padding(
+                padding: EdgeInsets.all(16), child: Text('Failed to load')),
           ),
         ],
       ),
@@ -344,10 +456,14 @@ class HomePage extends ConsumerWidget {
 
   IconData _getMealIcon(String? type) {
     switch (type) {
-      case 'breakfast': return Icons.wb_sunny_outlined;
-      case 'lunch': return Icons.lunch_dining;
-      case 'dinner': return Icons.dinner_dining;
-      default: return Icons.fastfood_outlined;
+      case 'breakfast':
+        return Icons.wb_sunny_outlined;
+      case 'lunch':
+        return Icons.lunch_dining;
+      case 'dinner':
+        return Icons.dinner_dining;
+      default:
+        return Icons.fastfood_outlined;
     }
   }
 }

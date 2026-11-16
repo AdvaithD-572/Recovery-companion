@@ -80,7 +80,7 @@ Thumbs.db
 
 # Accidental PowerShell brace-expansion directories
 {backend,mobile}/
-mobile/lib/{core/
+mobile/lib/\{core/
 
 # IDEs
 .idea/
@@ -88,3 +88,7 @@ mobile/lib/{core/
 *.ipr
 *.iws
 .vscode/
+
+# Local APKs and verification databases
+dist/
+*.sqlite3

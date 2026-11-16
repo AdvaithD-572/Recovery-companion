@@ -1,11 +1,12 @@
 from pydantic_settings import BaseSettings
 from typing import List
+from secrets import token_urlsafe
 
 
 class Settings(BaseSettings):
     # App
     ENVIRONMENT: str = "development"
-    SECRET_KEY: str = "dev-secret-key-change-in-production-please-use-env-variable"
+    SECRET_KEY: str = token_urlsafe(48)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24        # 1 day
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
 
     # AI / LLM
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-flash-latest"
     OPENAI_API_KEY: str = ""           # fallback for STT
 
     # Google Cloud (STT + Vision)
@@ -63,3 +65,5 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+if settings.ENVIRONMENT == "production" and ("SECRET_KEY" not in settings.model_fields_set or len(settings.SECRET_KEY) < 32 or "change-me" in settings.SECRET_KEY):
+    raise RuntimeError("Configure a private signing secret before using production mode.")

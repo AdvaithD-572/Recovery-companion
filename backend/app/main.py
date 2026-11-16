@@ -3,6 +3,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from app import care, directory
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.api.v1 import auth, patients, logs, prescriptions, food, clinician, voice, reminders
@@ -11,8 +14,8 @@ from app.api.v1 import auth, patients, logs, prescriptions, food, clinician, voi
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    from app.core.migrations import migrate
+    await migrate(engine)
     yield
     # Shutdown
     await engine.dispose()
@@ -26,6 +29,24 @@ app = FastAPI(
     docs_url="/docs" if settings.ENVIRONMENT == "development" else None,
     redoc_url=None,
 )
+
+@app.middleware("http")
+async def privacy_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.update({
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+    })
+    if request.url.path.startswith("/clinic"):
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
+    return response
+
+
+app.include_router(care.router)
+app.include_router(directory.router)
+app.mount("/clinic", StaticFiles(directory=Path(__file__).parent / "portal", html=True), name="clinic")
 
 # Middleware
 app.add_middleware(

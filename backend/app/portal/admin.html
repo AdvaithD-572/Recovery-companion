@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Station administration · Recovery Companion</title><link rel="stylesheet" href="style.css">
+<script src="accounts.js" defer></script><script src="admin.js" defer></script></head>
+<body><header><strong>Recovery Companion</strong><span>Administration</span><button id="logout" hidden>Sign out</button></header>
+<main><section id="signin"><h1>Station administrator</h1>
+<form id="login"><label>Administrator email<input name="email" type="email" autocomplete="username" required></label>
+<label>Password<input name="password" type="password" autocomplete="current-password" required></label><button>Sign in</button></form>
+<p><a href="./">Clinic desk</a></p></section>
+<section id="workspace" hidden><h1>Station directory</h1><div class="directory-columns">
+<article><h2>Clinics</h2><div id="clinics"></div>
+<details><summary>Create a clinic</summary><form id="create">
+<label>Clinic name<input name="name" maxlength="150" required></label>
+<label>First clinician’s name<input name="staff_name" minlength="2" maxlength="120" required></label>
+<label>Clinician email<input type="email" name="staff_email" required></label>
+<label>Clinician password<input type="password" name="staff_password" minlength="12" maxlength="72" autocomplete="new-password" required></label>
+<button>Create clinic</button></form></details></article>
+<article><h2>Patient profiles</h2><form id="searchForm"><label>Patient name or email<input name="q" type="search" maxlength="200"></label><button>Search</button></form>
+<div id="people"></div><div class="page-actions"><button id="prev" type="button">Previous</button><button id="next" type="button">Next</button></div>
+<section id="profile" hidden><h3>Patient profile</h3><dl id="fields"></dl></section></article></div></section>
+<p id="message" role="status" aria-live="polite"></p></main>
+<dialog id="confirm"><form method="dialog"><h2>Delete clinic?</h2><p id="consequence"></p>
+<button value="cancel" autofocus>Cancel</button><button value="delete" class="danger">Delete clinic</button></form></dialog></body></html>

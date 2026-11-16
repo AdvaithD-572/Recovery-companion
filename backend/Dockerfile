@@ -11,7 +11,11 @@ COPY requirements.txt .
 RUN pip install --upgrade pip setuptools wheel \
  && pip install -r requirements.txt -v
 
-COPY . .
+COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini manage.py ./
+RUN useradd --create-home --uid 10001 clinic
+USER clinic
 
 EXPOSE 8000
 

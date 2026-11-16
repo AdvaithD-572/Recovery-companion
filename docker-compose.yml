@@ -1,85 +1,41 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: recovery_companion
       POSTGRES_USER: rc_user
-      POSTGRES_PASSWORD: rc_pass
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${RC_DB_PASSWORD:?Set a private URL-safe RC_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rc_user -d recovery_companion"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 3s
-      retries: 5
+      timeout: 5s
+      retries: 10
 
   api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    build: ./backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    env_file: ./backend/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://rc_user:rc_pass@db:5432/recovery_companion
+      DATABASE_URL: postgresql+asyncpg://rc_user:${RC_DB_PASSWORD:?Set a private URL-safe RC_DB_PASSWORD}@db:5432/recovery_companion
       REDIS_URL: redis://redis:6379/0
-      ENVIRONMENT: development
-    env_file:
-      - ./backend/.env
+      ENVIRONMENT: production
+      ALLOWED_HOSTS: ${RC_API_HOSTS:-localhost,127.0.0.1,10.0.2.2}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    environment:
-      DATABASE_URL: postgresql+asyncpg://rc_user:rc_pass@db:5432/recovery_companion
-      REDIS_URL: redis://redis:6379/0
-    env_file:
-      - ./backend/.env
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-    command: celery -A app.tasks worker --loglevel=info --concurrency=4
-
-  beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    environment:
-      DATABASE_URL: postgresql+asyncpg://rc_user:rc_pass@db:5432/recovery_companion
-      REDIS_URL: redis://redis:6379/0
-    env_file:
-      - ./backend/.env
-    depends_on:
-      - redis
-    volumes:
-      - ./backend:/app
-    command: celery -A app.tasks beat --loglevel=info
 
 volumes:
   postgres_data:

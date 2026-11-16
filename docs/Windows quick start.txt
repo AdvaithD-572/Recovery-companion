@@ -1,0 +1,31 @@
+Recovery Companion for Windows
+
+Extract the ZIP into a folder before opening a launcher. The station includes Python and its dependencies. Windows 64-bit is required.
+
+Try the sample
+1. Double-click "Open sample clinic.cmd". Keep its terminal open.
+2. Open http://127.0.0.1:8000/clinic/ in a browser. Sign in as doctor@example.org with the random password in the terminal.
+3. On the Android app, sign in as patient@example.org using the same password. The sample resets each time you start it.
+4. For the sample administrator, use admin@example.org and the separate temporary admin password printed in the terminal.
+5. Select Mira Sample, review the diary and print the report. A clinician can finalize the visit. Open a previously prepared report to see the original record.
+
+Connect Android
+Install the separately supplied signed APK. The default clinic address is http://10.0.2.2:8000 for an Android emulator on this laptop. On a USB-connected phone, use Android platform-tools to run "adb reverse tcp:8000 tcp:8000", then tap the server address on the sign-in screen and enter http://127.0.0.1:8000. For a hosted installation, enter the HTTPS clinic origin provided by the operator. Credentials and offline entries are scoped to that server.
+
+Keep a diary between sessions
+Close the sample terminal first. Double-click "Open my clinic.cmd". On first use, choose your station administrator email and a private password. Open Station administrator on the clinic website. Sign in, choose Create a clinic, and enter its name and first clinician’s name, email and password. The browser opens when the station starts. Register a new patient on Android. At the clinic desk create an invitation for that patient's email. In Android Records, review the clinic and confirm the link. Use "Add clinic staff.cmd" to provision another clinician or receptionist with the same clinic name.
+
+Data and settings
+The persistent station saves its database and settings under %LOCALAPPDATA%\RecoveryCompanion\clinic. To enable optional Google assistance, fill in GEMINI_API_KEY in the .env in that folder and restart. The sample always runs with Google assistance disabled.
+
+Backup and restore
+From the extracted folder in PowerShell, run:
+.\runtime\python.exe .\backend\station.py backup "$env:USERPROFILE\clinic-backup.db"
+Restore into a new folder:
+.\runtime\python.exe .\backend\station.py restore "$env:USERPROFILE\clinic-backup.db" --data-dir "$env:LOCALAPPDATA\RecoveryCompanion\restored"
+Open the restored station:
+.\runtime\python.exe .\backend\station.py start --data-dir "$env:LOCALAPPDATA\RecoveryCompanion\restored"
+
+A backup includes the clinical records and staff password hashes. Keep the backup under the same access controls as the live database. A restored station creates its own signing secret and asks users to sign in again.
+
+Close the terminal to stop the local server. The desktop station binds to this laptop's loopback interface. Hospital deployment requires a separately operated HTTPS endpoint, physical device testing and review of clinical rules and access controls.

@@ -1,14 +1,12 @@
 """patients.py"""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import update
 from datetime import date
 
 from app.core.database import get_db
 from app.core.security import get_current_patient
 from app.models import Patient, Reminder
-from app.schemas import ReminderCreate, ReminderResponse
-from app.services.twin_service import build_digital_twin
 
 router = APIRouter()
 
@@ -20,6 +18,16 @@ async def onboarding_step(
     patient: Patient = Depends(get_current_patient),
     db: AsyncSession = Depends(get_db),
 ):
+    from pydantic import ValidationError
+    from app.schemas import OnboardingStep1, OnboardingStep2, OnboardingStep3, OnboardingStep4
+    schema = {1:OnboardingStep1, 2:OnboardingStep2, 3:OnboardingStep3, 4:OnboardingStep4}.get(step)
+    if schema is None:
+        raise HTTPException(404, "Unknown discharge step")
+    try:
+        payload = schema.model_validate(payload).model_dump(mode="json")
+    except ValidationError as exc:
+        errors = [{"field":".".join(map(str,item["loc"])), "message":item["msg"]} for item in exc.errors(include_input=False,include_context=False)]
+        raise HTTPException(422, errors) from None
     if step == 1:
         patient.dob = date.fromisoformat(payload['dob'])
         patient.gender = payload.get('gender')
@@ -43,19 +51,29 @@ async def onboarding_step(
         patient.mood_baseline = payload.get('mood_baseline')
 
     elif step == 4:
+        if not patient.dob or not patient.discharge_date or not patient.primary_condition:
+            raise HTTPException(422, "Complete your birth date and discharge details first")
+        changed = await db.execute(update(Patient).where(
+            Patient.id == patient.id, Patient.onboarding_complete.is_(False)).values(onboarding_complete=True))
+        if not changed.rowcount:
+            return {"status":"ok","step":4,"onboarding_complete":True}
+        from app.care import add_entry
+        note = str(payload.get("discharge_instructions") or "").strip()
+        if note:
+            add_entry(db,patient.id,None,"instructions",patient.id,{"text":note[:4000]})
+        from app.models import Prescription
+        from app.schemas import PrescriptionCreate
+        from pydantic import ValidationError
+        try:
+            for raw in payload.get("prescriptions", []):
+                rx = PrescriptionCreate.model_validate(raw)
+                db.add(Prescription(patient_id=patient.id, doses_remaining=rx.total_doses_bought, **rx.model_dump()))
+        except ValidationError:
+            raise HTTPException(422, "Invalid prescription")
         patient.emergency_contact = payload.get('emergency_contact')
         patient.onboarding_complete = True
-        await build_digital_twin(db, patient)
-
-        for r in [
-            Reminder(patient_id=patient.id, reminder_type="checkin",
-                     scheduled_time="19:00", days_of_week=list(range(7))),
-            Reminder(patient_id=patient.id, reminder_type="water",
-                     scheduled_time="10:00", days_of_week=list(range(7))),
-            Reminder(patient_id=patient.id, reminder_type="water",
-                     scheduled_time="14:00", days_of_week=list(range(7))),
-        ]:
-            db.add(r)
+        db.add(Reminder(patient_id=patient.id, reminder_type="checkin",
+                        scheduled_time="19:00", days_of_week=list(range(7))))
 
     await db.flush()
     return {"status": "ok", "step": step, "onboarding_complete": patient.onboarding_complete}

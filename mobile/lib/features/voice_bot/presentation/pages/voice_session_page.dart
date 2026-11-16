@@ -9,7 +9,15 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/di/providers.dart';
 
 /// Voice bot state machine states
-enum _BotState { selectingLanguage, loading, speaking, listening, processing, done, error }
+enum _BotState {
+  selectingLanguage,
+  loading,
+  speaking,
+  listening,
+  processing,
+  done,
+  error
+}
 
 class VoiceSessionPage extends ConsumerStatefulWidget {
   const VoiceSessionPage({super.key});
@@ -30,11 +38,15 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
   final List<int> _answers = [];
 
   List<_VoiceQuestion> _questions = [
-    _VoiceQuestion('How are you feeling today? Rate your pain from 0 to 10.', 'pain_score'),
-    _VoiceQuestion('How was your sleep last night? Give a number from 0 to 10.', 'sleep_score'),
+    _VoiceQuestion('How are you feeling today? Rate your pain from 0 to 10.',
+        'pain_score'),
+    _VoiceQuestion('How was your sleep last night? Give a number from 0 to 10.',
+        'sleep_score'),
     _VoiceQuestion("How's your appetite? Rate from 0 to 10.", 'appetite_score'),
-    _VoiceQuestion("How's your mood? Give a number from 0 to 10.", 'mood_score'),
-    _VoiceQuestion("How's your energy today? Rate from 0 to 10.", 'fatigue_score'),
+    _VoiceQuestion(
+        "How's your mood? Give a number from 0 to 10.", 'mood_score'),
+    _VoiceQuestion(
+        "How's your energy today? Rate from 0 to 10.", 'fatigue_score'),
     _VoiceQuestion("How's your mobility? Rate from 0 to 10.", 'mobility_score'),
   ];
 
@@ -46,10 +58,14 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
   ];
 
   static const _openings = {
-    'en-US': 'Hello! Starting your daily check-in. I will ask you 6 questions. Answer each with a number from 0 to 10.',
-    'hi-IN': 'नमस्ते! आपका दैनिक चेक-इन शुरू हो रहा है। मैं आपसे 6 सवाल पूछूंगा। हर जवाब 0 से 10 के बीच में दें।',
-    'te-IN': 'నమస్కారం! మీ రోజువారీ చెక్-ఇన్ ప్రారంభమవుతోంది. నేను మీకు 6 ప్రశ్నలు అడుగుతాను. ప్రతి సమాధానం 0 నుండి 10 మధ్య ఇవ్వండి.',
-    'ta-IN': 'வணக்கம்! உங்கள் தினசரி செக்-இன் தொடங்குகிறது. நான் 6 கேள்விகள் கேட்பேன். பூஜ்யம் முதல் 10 வரை கொடுங்கள்.',
+    'en-US':
+        'Hello! Starting your daily check-in. I will ask you 6 questions. Answer each with a number from 0 to 10.',
+    'hi-IN':
+        'नमस्ते! आपका दैनिक चेक-इन शुरू हो रहा है। मैं आपसे 6 सवाल पूछूंगा। हर जवाब 0 से 10 के बीच में दें।',
+    'te-IN':
+        'నమస్కారం! మీ రోజువారీ చెక్-ఇన్ ప్రారంభమవుతోంది. నేను మీకు 6 ప్రశ్నలు అడుగుతాను. ప్రతి సమాధానం 0 నుండి 10 మధ్య ఇవ్వండి.',
+    'ta-IN':
+        'வணக்கம்! உங்கள் தினசரி செக்-இன் தொடங்குகிறது. நான் 6 கேள்விகள் கேட்பேன். பூஜ்யம் முதல் 10 வரை கொடுங்கள்.',
   };
 
   static const _retryMessages = {
@@ -97,7 +113,8 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
           final rq = response['questions'] as List<dynamic>;
           setState(() {
             _questions = rq
-                .map((q) => _VoiceQuestion(q['text'] as String, q['field'] as String))
+                .map((q) =>
+                    _VoiceQuestion(q['text'] as String, q['field'] as String))
                 .toList();
           });
         }
@@ -120,7 +137,12 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
     );
 
     if (!available) {
-      if (mounted) setState(() { _state = _BotState.error; _statusText = 'Microphone not available'; });
+      if (mounted) {
+        setState(() {
+          _state = _BotState.error;
+          _statusText = 'Microphone not available';
+        });
+      }
       return;
     }
 
@@ -197,12 +219,15 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
   // ──────────────────────────────────────────────
   Future<void> _processAnswer(String text) async {
     if (!mounted) return;
-    setState(() { _state = _BotState.processing; });
+    setState(() {
+      _state = _BotState.processing;
+    });
 
     final score = _extractScore(text);
     if (score == null) {
       // Couldn't extract — ask to repeat
-      await _speakAndWait(_retryMessages[_currentLanguage] ?? _retryMessages['en-US']!);
+      await _speakAndWait(
+          _retryMessages[_currentLanguage] ?? _retryMessages['en-US']!);
       _askCurrentQuestion();
       return;
     }
@@ -213,7 +238,36 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
       setState(() => _currentQuestion++);
       _askCurrentQuestion();
     } else {
-      await _submitAndClose();
+      final accept = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+                  title: const Text('Review your check-in'),
+                  content: Text(List.generate(
+                      _answers.length,
+                      (i) => '${[
+                            "Pain",
+                            "Sleep",
+                            "Appetite",
+                            "Mood",
+                            "Energy",
+                            "Mobility"
+                          ][i]}: ${_answers[i]}/10').join('\n')),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Try again')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Save'))
+                  ]));
+      if (!mounted) return;
+      if (accept == true) {
+        await _submitAndClose();
+      } else {
+        _answers.clear();
+        _currentQuestion = 0;
+        await _askCurrentQuestion();
+      }
     }
   }
 
@@ -229,23 +283,42 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
 
     // Word maps (English + Hindi + Telugu)
     const words = {
-      'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
-      'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
-      'शून्य': 0, 'एक': 1, 'दो': 2, 'तीन': 3, 'चार': 4,
-      'पांच': 5, 'पाँच': 5, 'छह': 6, 'सात': 7, 'आठ': 8, 'नौ': 9, 'दस': 10,
-      'సున్న': 0, 'ఒకటి': 1, 'రెండు': 2, 'మూడు': 3, 'నాలుగు': 4,
-      'అయిదు': 5, 'ఆరు': 6, 'ఏడు': 7, 'ఎనిమిది': 8, 'తొమ్మిది': 9, 'పది': 10,
+      'zero': 0,
+      'one': 1,
+      'two': 2,
+      'three': 3,
+      'four': 4,
+      'five': 5,
+      'six': 6,
+      'seven': 7,
+      'eight': 8,
+      'nine': 9,
+      'ten': 10,
+      'शून्य': 0,
+      'एक': 1,
+      'दो': 2,
+      'तीन': 3,
+      'चार': 4,
+      'पांच': 5,
+      'पाँच': 5,
+      'छह': 6,
+      'सात': 7,
+      'आठ': 8,
+      'नौ': 9,
+      'दस': 10,
+      'సున్న': 0,
+      'ఒకటి': 1,
+      'రెండు': 2,
+      'మూడు': 3,
+      'నాలుగు': 4,
+      'అయిదు': 5,
+      'ఆరు': 6,
+      'ఏడు': 7,
+      'ఎనిమిది': 8,
+      'తొమ్మిది': 9,
+      'పది': 10,
     };
     for (final e in words.entries) {
-      if (t.contains(e.key)) return e.value;
-    }
-
-    // Common English descriptor fallback
-    const desc = {
-      'great': 8, 'good': 7, 'fine': 6, 'okay': 5, 'ok': 5,
-      'bad': 3, 'terrible': 1, 'worst': 0, 'excellent': 9, 'perfect': 10,
-    };
-    for (final e in desc.entries) {
       if (t.contains(e.key)) return e.value;
     }
 
@@ -256,20 +329,23 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
   // Submit results to backend
   // ──────────────────────────────────────────────
   Future<void> _submitAndClose() async {
-    setState(() { _state = _BotState.done; });
-    await _speakAndWait(_doneMessages[_currentLanguage] ?? _doneMessages['en-US']!);
+    setState(() {
+      _state = _BotState.done;
+    });
+    await _speakAndWait(
+        _doneMessages[_currentLanguage] ?? _doneMessages['en-US']!);
 
     try {
       final apiClient = ref.read(apiClientProvider);
       final today = DateTime.now().toIso8601String().split('T')[0];
       await apiClient.post('/api/v1/logs/daily', body: {
         'log_date': today,
-        'pain_score':     _answers.isNotEmpty     ? _answers[0] : 5,
-        'sleep_score':    _answers.length > 1     ? _answers[1] : 5,
-        'appetite_score': _answers.length > 2     ? _answers[2] : 5,
-        'mood_score':     _answers.length > 3     ? _answers[3] : 5,
-        'fatigue_score':  _answers.length > 4     ? _answers[4] : 5,
-        'mobility_score': _answers.length > 5     ? _answers[5] : 5,
+        'pain_score': _answers.isNotEmpty ? _answers[0] : 5,
+        'sleep_score': _answers.length > 1 ? _answers[1] : 5,
+        'appetite_score': _answers.length > 2 ? _answers[2] : 5,
+        'mood_score': _answers.length > 3 ? _answers[3] : 5,
+        'fatigue_score': _answers.length > 4 ? 10 - _answers[4] : null,
+        'mobility_score': _answers.length > 5 ? _answers[5] : 5,
         'submission_method': 'voice',
       });
       ref.invalidate(todayLogProvider);
@@ -315,12 +391,16 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
             children: [
               const Spacer(),
               Container(
-                width: 80, height: 80,
-                decoration: BoxDecoration(color: AppColors.sagePale, shape: BoxShape.circle),
-                child: const Icon(Icons.language, color: AppColors.sage, size: 40),
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                    color: AppColors.sagePale, shape: BoxShape.circle),
+                child:
+                    const Icon(Icons.language, color: AppColors.sage, size: 40),
               ),
               const SizedBox(height: 24),
-              Text('What language do you speak?', style: AppTextStyles.heading(), textAlign: TextAlign.center),
+              Text('What language do you speak?',
+                  style: AppTextStyles.heading(), textAlign: TextAlign.center),
               const SizedBox(height: 8),
               Text(
                 'The bot will ask all questions and understand your answers in your language.',
@@ -329,26 +409,28 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
               ),
               const SizedBox(height: 40),
               ..._languages.map((lang) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.textDark,
-                      elevation: 0,
-                      side: const BorderSide(color: AppColors.cream, width: 2),
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppColors.textDark,
+                          elevation: 0,
+                          side: const BorderSide(
+                              color: AppColors.cream, width: 2),
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                        onPressed: () => _startSession(lang['code']!),
+                        child: Text(
+                          '${lang['flag']} ${lang['label']}',
+                          style: AppTextStyles.body(weight: FontWeight.w600),
+                        ),
+                      ),
                     ),
-                    onPressed: () => _startSession(lang['code']!),
-                    child: Text(
-                      '${lang['flag']} ${lang['label']}',
-                      style: AppTextStyles.body(weight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              )),
+                  )),
               const Spacer(),
               TextButton(
                 onPressed: () => context.push('/checkin'),
@@ -383,11 +465,17 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
 
               // State label
               Text(
-                _state == _BotState.speaking  ? 'Speaking…'   :
-                _state == _BotState.listening  ? 'Listening…'  :
-                _state == _BotState.loading    ? 'Loading…'    :
-                _state == _BotState.processing ? 'Processing…' :
-                _state == _BotState.done       ? 'Done!'       : '',
+                _state == _BotState.speaking
+                    ? 'Speaking…'
+                    : _state == _BotState.listening
+                        ? 'Listening…'
+                        : _state == _BotState.loading
+                            ? 'Loading…'
+                            : _state == _BotState.processing
+                                ? 'Processing…'
+                                : _state == _BotState.done
+                                    ? 'Done!'
+                                    : '',
                 style: AppTextStyles.heading(size: 22),
               ),
               const SizedBox(height: 12),
@@ -417,7 +505,8 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
                 LinearProgressIndicator(
                   value: _answers.length / _questions.length,
                   backgroundColor: AppColors.cream,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.sage),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(AppColors.sage),
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(3),
                 ),
@@ -437,32 +526,46 @@ class _VoiceSessionPageState extends ConsumerState<VoiceSessionPage> {
   }
 
   Widget _buildMicAnimation() {
-    final isActive = _state == _BotState.listening || _state == _BotState.speaking;
+    final isActive =
+        _state == _BotState.listening || _state == _BotState.speaking;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 1.0, end: isActive ? 1.15 : 1.0),
       duration: const Duration(milliseconds: 700),
       curve: Curves.easeInOut,
       builder: (context, scale, _) => Container(
-        width: 140 * scale, height: 140 * scale,
+        width: 140 * scale,
+        height: 140 * scale,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: isActive ? AppColors.sagePale : AppColors.cream,
-          boxShadow: isActive ? [
-            BoxShadow(color: AppColors.sage.withValues(alpha: 0.25), blurRadius: 30, spreadRadius: 6),
-          ] : [],
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                      color: AppColors.sage.withValues(alpha: 0.25),
+                      blurRadius: 30,
+                      spreadRadius: 6),
+                ]
+              : [],
         ),
         child: Center(
           child: Container(
-            width: 100, height: 100,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _state == _BotState.listening ? AppColors.sage : AppColors.cream,
+              color: _state == _BotState.listening
+                  ? AppColors.sage
+                  : AppColors.cream,
             ),
             child: Icon(
-              _state == _BotState.listening ? Icons.mic :
-              _state == _BotState.speaking  ? Icons.volume_up : Icons.mic_none,
+              _state == _BotState.listening
+                  ? Icons.mic
+                  : _state == _BotState.speaking
+                      ? Icons.volume_up
+                      : Icons.mic_none,
               size: 44,
-              color: _state == _BotState.listening ? Colors.white : AppColors.sage,
+              color:
+                  _state == _BotState.listening ? Colors.white : AppColors.sage,
             ),
           ),
         ),

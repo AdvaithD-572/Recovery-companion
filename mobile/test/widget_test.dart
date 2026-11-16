@@ -1,30 +1,61 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:recovery_companion/main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:recovery_companion/features/care/care_page.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Reopening or refreshing Records fetches current clinic visits',
+      (tester) async {
+    var note = 'First checkup';
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          careProvider.overrideWith((ref) async => {
+                'clinic': 'Demo clinic',
+                'instructions': [],
+                'events': [],
+                'visits': [
+                  {'note': note, 'at': '2026-11-16'}
+                ]
+              })
+        ],
+        child: MaterialApp(
+            home: ValueListenableBuilder<bool>(
+                valueListenable: visible,
+                builder: (_, open, __) =>
+                    open ? const CarePage() : const SizedBox()))));
+    await tester.pumpAndSettle();
+    visible.value = false;
+    await tester.pumpAndSettle();
+    note = 'New clinic visit';
+    visible.value = true;
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text(note), 200,
+        scrollable: find.byType(Scrollable).first);
+    note = 'Another clinic visit';
+    await tester.tap(find.byTooltip('Refresh care record'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text(note), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text(note), findsOneWidget);
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('Patient reads the completed clinic checkup', (tester) async {
+    await tester.pumpWidget(ProviderScope(overrides: [
+      careProvider.overrideWith((ref) async => {
+            'clinic': 'Demo clinic',
+            'instructions': [],
+            'events': [],
+            'visits': [
+              {'note': 'Follow-up recorded', 'at': '2026-11-08'}
+            ]
+          })
+    ], child: const MaterialApp(home: CarePage())));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Follow-up recorded'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Follow-up recorded'), findsOneWidget);
+    expect(find.text('Finalize checkup'), findsNothing);
   });
 }

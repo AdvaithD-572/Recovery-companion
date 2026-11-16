@@ -72,3 +72,14 @@ async def delete_reminder(
     if not reminder:
         raise HTTPException(status_code=404, detail="Reminder not found")
     await db.delete(reminder)
+
+
+@router.patch("/{reminder_id}")
+async def set_active(reminder_id: UUID, payload: dict, patient=Depends(get_current_patient),db=Depends(get_db)):
+    if type(payload.get("is_active")) is not bool:
+        raise HTTPException(422, "is_active must be true or false")
+    reminder=await db.scalar(select(Reminder).where(Reminder.id==reminder_id,Reminder.patient_id==patient.id))
+    if not reminder:
+        raise HTTPException(404,"Reminder unavailable")
+    reminder.is_active=payload["is_active"]
+    return {"is_active":reminder.is_active}

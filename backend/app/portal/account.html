@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Patient account · Recovery Companion</title><link rel="stylesheet" href="style.css"><script src="accounts.js" defer></script><script src="patient.js" defer></script></head>
+<body><header><strong>Recovery Companion</strong><span>Patient account</span><button id="logout" hidden>Sign out</button></header><main>
+<section id="signin"><h1>Patient account</h1><form id="login"><label>Email<input type="email" name="email" autocomplete="username" required></label>
+<label>Password<input name="password" type="password" autocomplete="current-password" required></label><button>Sign in</button></form>
+<details><summary>Create my profile</summary><form id="register"><label>Full name<input name="full_name" minlength="2" maxlength="120" required></label>
+<label>Account email<input name="email" type="email" required></label><label>Choose password<input name="password" type="password" minlength="8" autocomplete="new-password" required></label><button>Create profile</button></form></details>
+<p><a href="./">Clinic desk</a></p></section>
+<section id="workspace" class="account-card" hidden><h1 id="name"></h1><p id="email"></p><p>Continue discharge setup and keep your recovery diary in the Android app.</p>
+<details><summary>Delete my profile</summary><form id="remove"><p>This permanently removes your active profile and diary, signs you out of the server and disconnects your clinic. Previously prepared clinic reports, signed checkups, audit records and existing backups are retained.</p>
+<label>Confirm your current password<input name="password" type="password" autocomplete="current-password" required></label>
+<button class="danger">Permanently delete my profile</button></form></details></section><p id="message" role="status" aria-live="polite"></p></main></body></html>

@@ -11,6 +11,8 @@ from app.core.security import get_current_clinician
 from app.models import Clinician, Patient, EscalationFlag, DailyLog, DigitalTwin
 from app.schemas import PatientFlagSummary, TrendDataPoint, EscalationFlagResponse
 
+from app.care import Link, Staff
+
 router = APIRouter()
 
 
@@ -32,7 +34,7 @@ async def get_flagged_patients(
         .join(Patient, Patient.id == EscalationFlag.patient_id)
         .where(
             and_(
-                Patient.clinician_id == clinician.id,
+                Patient.id.in_(select(Link.patient).join(Staff, Staff.clinic == Link.clinic).where(Staff.id == clinician.id, Staff.role == "clinician")),
                 EscalationFlag.level >= min_level,
                 EscalationFlag.flag_date >= since,
                 EscalationFlag.suppressed == False,
@@ -103,7 +105,7 @@ async def mark_reviewed(
     clinician: Clinician = Depends(get_current_clinician),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(EscalationFlag).where(EscalationFlag.id == flag_id))
+    result = await db.execute(select(EscalationFlag).join(Patient).where(EscalationFlag.id == flag_id, Patient.id.in_(select(Link.patient).join(Staff, Staff.clinic == Link.clinic).where(Staff.id == clinician.id, Staff.role == "clinician"))))
     flag = result.scalar_one_or_none()
     if flag:
         flag.clinician_reviewed = True
@@ -117,7 +119,7 @@ async def list_patients(
 ):
     """All patients assigned to this clinician — high-level only, no raw logs."""
     result = await db.execute(
-        select(Patient).where(Patient.clinician_id == clinician.id)
+        select(Patient).where(Patient.id.in_(select(Link.patient).join(Staff, Staff.clinic == Link.clinic).where(Staff.id == clinician.id, Staff.role == "clinician")))
     )
     patients = result.scalars().all()
 

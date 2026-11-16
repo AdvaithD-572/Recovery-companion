@@ -38,37 +38,41 @@ class RefreshRequest(BaseModel):
 
 # ── Onboarding ────────────────────────────────────────────
 class OnboardingStep1(BaseModel):
-    """Demographics"""
     dob: date
-    gender: str
-    height_cm: int = Field(..., ge=100, le=250)
-    weight_kg: float = Field(..., ge=20, le=300)
-    living_situation: str     # alone | family | assisted
+    gender: Optional[str] = Field(None, max_length=20)
+    height_cm: Optional[int] = Field(None, gt=0, le=300)
+    weight_kg: Optional[float] = Field(None, gt=0, le=999)
+    living_situation: Optional[str] = Field(None, max_length=50)
+
+    @field_validator("dob")
+    @classmethod
+    def past_birth_date(cls, value):
+        if value > date.today():
+            raise ValueError("Birth date is in the future")
+        return value
 
 
 class OnboardingStep2(BaseModel):
-    """Condition"""
-    primary_condition: str
-    surgery_type: Optional[str] = None
+    primary_condition: str = Field(min_length=1, max_length=200)
+    surgery_type: Optional[str] = Field(None, max_length=200)
     discharge_date: date
-    chronic_diseases: List[str] = []
-    allergies: List[str] = []
+    chronic_diseases: List[str] = Field(default_factory=list, max_length=100)
+    allergies: List[str] = Field(default_factory=list, max_length=100)
 
 
 class OnboardingStep3(BaseModel):
-    """Lifestyle"""
-    eating_habits: str
-    exercise_frequency: str
+    eating_habits: Optional[str] = Field(None, max_length=100)
+    exercise_frequency: Optional[str] = Field(None, max_length=50)
     smoking: bool = False
     alcohol: bool = False
-    sleep_baseline: float = Field(..., ge=1, le=12)
-    mood_baseline: float = Field(..., ge=0, le=10)
+    sleep_baseline: Optional[float] = Field(None, ge=0, le=24)
+    mood_baseline: Optional[float] = Field(None, ge=0, le=10)
 
 
 class OnboardingStep4(BaseModel):
-    """Prescriptions (initial)"""
-    prescriptions: List["PrescriptionCreate"]
+    prescriptions: List["PrescriptionCreate"] = Field(default_factory=list, max_length=100)
     emergency_contact: Optional[dict] = None
+    discharge_instructions: str = Field("", max_length=4000)
 
 
 # ── Daily Log ─────────────────────────────────────────────
@@ -180,7 +184,8 @@ class InteractionFlag(BaseModel):
 class FoodScanResponse(BaseModel):
     food_items: List[FoodItem]
     interaction_flags: List[InteractionFlag]
-    has_interactions: bool
+    has_interactions: Optional[bool] = None
+    analysis_status: str = "not_assessed"
     recommended_foods: Optional[List[str]] = None
 
 

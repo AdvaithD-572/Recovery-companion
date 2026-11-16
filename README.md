@@ -1,286 +1,107 @@
 # Recovery Companion
 
-A premium, mobile-first healthcare recovery monitoring application designed for post-hospital discharge patients. The app provides intelligent recovery tracking, prescription management, food logging with drug interaction warnings, and multilingual voice support, all wrapped in a calm, non-alarming UI.
+A discharged patient keeps a recovery diary on Android. At the next visit, clinic staff open that patient's record on a laptop and print the interval since the previous completed checkup. A clinician can finalize the visit or append a correction. The patient can read both records.
 
-![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-blue)
-![Backend](https://img.shields.io/badge/Backend-FastAPI-green)
-![Database](https://img.shields.io/badge/Database-PostgreSQL-blue)
+![Clinic desk showing a synthetic follow-up report](docs/demo/clinic-desk.png)
 
-## Features
+[View the installed Android app](docs/demo/patient-home.png) · [Open the sample doctor handout (PDF)](docs/demo/follow-up.pdf) · [See verification and remaining release work](ACCEPTANCE.md)
 
-### Patient App
-- **Digital Twin** - Personalized recovery curves based on your condition, age, and lifestyle
-- **Daily Check-in** - Beautiful slider-based questionnaire (pain, sleep, appetite, mood, fatigue, mobility)
-- **Voice Bot** - Multilingual voice check-in (English, Hindi, Telugu, Tamil)
-- **Prescription Tracking** - Dose logging with gentle refill reminders
-- **Food Logging** - Camera-based meal scanning with drug interaction warnings
-- **Recovery Trends** - Visual charts comparing your progress vs expected recovery
-- **Smart Reminders** - Medicine, water, meal, and exercise reminders
-- **Offline Support** - Queue logs when offline, sync when back online
+## Install the local edition
 
-### Clinician Dashboard
-- **Flagged Patients Only** - No spam, only patients needing attention
-- **AI Summaries** - Clinician-ready insights without raw data overload
-- **Trend Visualization** - See recovery trajectory at a glance
+The combined kit is `dist/Recovery-Companion.zip`. Extract it on Windows, open **Open sample clinic.cmd** to try the workflow, and install **Recovery-Companion-Android.apk** on the Android device. **START HERE.txt** gives the clinic login, connection and backup steps. Rebuild the combined kit with `backend/venv/Scripts/python.exe tools/package-windows.py --include-android` after producing the signed APK.
 
-### Design Philosophy
-- **Calm** - Never alarming, always supportive
-- **Intelligent** - AI-powered insights that feel human
-- **Observant** - Noticing patterns without overreaction
-- **Non-judgmental** - Supportive language throughout
+The release folder contains a signed Android APK and a portable 64-bit Windows station. Extract the station ZIP and open **Open sample clinic.cmd** for a disposable synthetic clinic, or **Open my clinic.cmd** for a persistent local database. The station includes its own Python runtime. First launch of the persistent edition prompts for your station administrator email and a private password. At the clinic desk, choose **Station administrator**, sign in, and expand **Create a clinic**. Enter the clinic name and its first clinician’s name, email and password. The clinician can then use the ordinary staff sign-in. **Add clinic staff.cmd** provisions additional staff for an existing clinic.
 
-## Quick Start
+The administrator can search and read all active patient profiles, including unlinked patients. Deleting a clinic disables its staff membership, removes invitations and disconnects patients. A new clinic with the same name gets its own identity and fresh permissions. For patient self-service, choose **Patient account** on the website to create a profile or sign in and delete your own. Deletion removes the active profile and diary. Previously prepared reports, signed records, audit history and existing backups are retained.
 
-### Prerequisites
+Install the release APK and select the clinic server on the sign-in screen. The default address connects an emulator to the station on the same laptop. A USB-connected Android phone can use Android platform-tools with `adb reverse tcp:8000 tcp:8000` and the address `http://127.0.0.1:8000`. Remote clinic installations require HTTPS. The Android signing identity for local distribution stays in the current Windows user's profile.
 
-- **Backend**: Python 3.12+, PostgreSQL 16+, Redis 7+
-- **Mobile**: Flutter 3.4+, Dart 3.4+
-- **AI Services**:
-  - Gemini API key
-  - Google Cloud credentials (STT/TTS)
-  - Optional: OpenAI API key (Whisper fallback)
-  - Optional: DrugBank API key (drug interactions)
+The persistent station stores its SQLite database and settings under `%LOCALAPPDATA%\RecoveryCompanion\clinic`. Its optional Google key belongs in the .env there. The sample disables Gemini. The included START HERE.txt covers private backups, restoring into a new folder, login and linking a patient.
 
-### Option 1: Docker Compose (Recommended)
+## Run from source
 
-```bash
-# Clone the project
-cd recovery_companion
+On this laptop, run `.\tools\run-demo.ps1 -Android` from the project folder to open the Android emulator and start the synthetic clinic. For the clinic desk alone, run the following in PowerShell:
 
-# Start all services (API, Database, Redis, Workers)
-docker-compose up --build
-
-# Backend runs at http://localhost:8000
-# API docs at http://localhost:8000/docs
-```
-
-### Option 2: Local Development
-
-#### Backend Setup
-
-```bash
+```powershell
 cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys
-
-# Run the server
-uvicorn app.main:app --reload --port 8000
+.\venv\Scripts\python.exe demo.py
 ```
 
-#### Mobile Setup
+Open **http://127.0.0.1:8000/clinic/**. Sign in as **doctor@example.org** with the temporary password printed in the terminal. Select **Mira Sample**. Print the report or save it as PDF, finalize a checkup, then open a previously prepared report to see its original contents. On the Android emulator, use **patient@example.org** and the same temporary password. The demonstration starts with a fresh synthetic database each time.
 
-```bash
-cd mobile
+For a new checkout, create the backend environment first:
 
-# Get dependencies
-flutter pub get
-
-# Run on connected device/emulator
-flutter run
+```powershell
+cd backend
+py -3.12 -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe demo.py
 ```
 
-## Project Structure
+## Android
 
-```
-recovery_companion/
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/          # API endpoints
-│   │   │   ├── auth.py      # Authentication
-│   │   │   ├── patients.py  # Patient profiles & onboarding
-│   │   │   ├── logs.py      # Daily logs & trends
-│   │   │   ├── prescriptions.py
-│   │   │   ├── food.py      # Food logging & interactions
-│   │   │   ├── voice.py     # Voice bot
-│   │   │   ├── reminders.py
-│   │   │   └── clinician.py # Clinician dashboard
-│   │   ├── core/            # Config, DB, security
-│   │   ├── models/          # SQLAlchemy models
-│   │   ├── schemas/         # Pydantic schemas
-│   │   ├── services/        # Business logic
-│   │   │   ├── ai_service.py      # AI orchestrator
-│   │   │   ├── twin_service.py     # Digital twin
-│   │   │   └── trend_service.py   # Trend analysis
-│   │   ├── tasks/           # Celery background tasks
-│   │   └── utils/           # STT, TTS, push, S3
-│   ├── requirements.txt
-│   └── Dockerfile
-│
-├── mobile/
-│   ├── lib/
-│   │   ├── core/
-│   │   │   ├── theme/      # Beautiful UI theme
-│   │   │   ├── router/     # GoRouter navigation
-│   │   │   └── di/         # Riverpod providers
-│   │   ├── features/
-│   │   │   ├── login/
-│   │   │   ├── onboarding/
-│   │   │   ├── home/
-│   │   │   ├── questionnaire/
-│   │   │   ├── prescription/
-│   │   │   ├── food_log/
-│   │   │   ├── trends/
-│   │   │   ├── voice_bot/
-│   │   │   └── reminders/
-│   │   └── shared/
-│   │       ├── services/   # API client, auth, offline
-│   │       └── widgets/    # Reusable widgets
-│   └── pubspec.yaml
-│
-└── docker-compose.yml
+The local debug APK is in `dist/app-debug.apk`. It connects to the demo on the laptop through the Android Emulator address `10.0.2.2:8000`. Start an Android emulator and run `adb install -r dist/app-debug.apk` from the repository root. A fresh installation can register a patient and complete discharge intake.
+
+Build from the repository root using Flutter, Java 17 and the Android SDK:
+
+```powershell
+.\tools\build-android.ps1
 ```
 
-## Environment Variables
+To test over USB on a physical Android phone, enable USB debugging, connect the phone, start the backend, and run:
 
-The real `backend/.env` file is intentionally ignored by Git. Commit `backend/.env.example` only, then create your own local `.env` from it.
-
-```env
-# Database
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/recovery_companion
-REDIS_URL=redis://localhost:6379/0
-
-# Security
-SECRET_KEY=change-me-to-a-long-random-secret-key
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-
-# AI Services
-GEMINI_API_KEY=your-gemini-api-key
-OPENAI_API_KEY=your-openai-api-key
-
-# Google Cloud (STT/TTS)
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-GOOGLE_PROJECT_ID=your-project
-
-# AWS S3
-AWS_REGION=ap-south-1
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-S3_BUCKET_FOOD_IMAGES=rc-food-images
-S3_BUCKET_PRESCRIPTIONS=rc-prescriptions
-
-# Firebase (Push)
-FIREBASE_CREDENTIALS_PATH=/path/to/firebase-credentials.json
-
-# Drug Interactions (Optional)
-DRUGBANK_API_KEY=...
+```powershell
+adb reverse tcp:8000 tcp:8000
+.\tools\build-android.ps1 -ApiBaseUrl http://127.0.0.1:8000
+adb install -r dist/app-debug.apk
 ```
 
-## GitHub Upload Checklist
+For distribution the build helper accepts `-Release -ApiBaseUrl https://your-clinic-host`. Supply the path to your signing keystore in `RC_KEYSTORE` and the corresponding `RC_STORE_PASSWORD`, `RC_KEY_ALIAS` and `RC_KEY_PASSWORD` through the local environment.
 
-Before pushing to GitHub, make sure these files are included:
+## What patients and staff can do
 
-- `README.md`
-- `.gitignore`
-- `backend/.env.example`
-- Source code in `backend/` and `mobile/`
-- Dependency files such as `backend/requirements.txt`, `mobile/pubspec.yaml`, and `mobile/pubspec.lock`
+- Record a discharge profile, prescriptions, allergies, food instructions, doses taken or explicitly skipped, meals and daily symptom scores. Review voice-assisted check-in values before submitting. Permission-based device reminders can be enabled in the app.
+- See symptom history alongside a tracker for explicitly skipped medicines and recorded foods. A clinician specifies the exact name, attention level and reason. An unmatched event displays **Unable to assess**. Missing entries stay distinct from skipped doses.
+- Link a clinic through an expiring invitation issued for the patient's account email. The patient previews and confirms the clinic and can revoke access.
+- Search linked patients, mark an arrival, prepare a dated report and reprint its saved snapshot. Printing leaves the interval open. Finalizing the checkup starts the next interval. Late uploads are identified in the report.
 
-Do not commit these:
+## Keep a local database
 
-- `backend/.env`
-- API keys, passwords, tokens, or service-account JSON files
-- `backend/venv/`
-- `mobile/build/`
-- Local databases such as `backend/recovery_companion.db`
+From `backend`, copy `.env.example` to `.env` on a fresh checkout. Set a private, persistent `SECRET_KEY` for sessions. The default database is SQLite. An explicit `DATABASE_URL` can select PostgreSQL with the `postgresql+asyncpg` driver. For a new database:
 
-## API Endpoints
+```powershell
+.\venv\Scripts\python.exe -m alembic upgrade head
+.\venv\Scripts\python.exe manage.py --role administrator --email admin@example.org
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
-### Authentication
-- `POST /api/v1/auth/patient/register` - Patient registration
-- `POST /api/v1/auth/patient/login` - Patient login
-- `POST /api/v1/auth/clinician/register` - Clinician registration
-- `POST /api/v1/auth/clinician/login` - Clinician login
-- `POST /api/v1/auth/refresh` - Refresh tokens
+The staff command prompts for the password. Use the clinic desk to issue an invitation and enter it in the patient's Records tab. The receptionist role can retrieve reports and record arrival. Clinical rules, checkup finalization and amendments require the clinician role.
 
-### Patients
-- `GET /api/v1/patients/me` - Get current patient profile
-- `POST /api/v1/patients/onboarding/step/{step}` - Complete onboarding
-- `PATCH /api/v1/patients/fcm-token` - Update FCM token
+## Verify the Android and clinic connection
 
-### Daily Logs
-- `POST /api/v1/logs/daily` - Submit daily log
-- `GET /api/v1/logs/daily` - Get logs (last N days)
-- `GET /api/v1/logs/daily/today` - Get today's log
-- `GET /api/v1/logs/trends/{metric}` - Get trend data
-- `PATCH /api/v1/logs/daily/{log_id}/clarify` - Add context to a log
+Install the signed APK on a dedicated Android emulator. Start at its signed-out screen and leave port 8000 free for the disposable clinic. From the repository root, run the following with ADB on PATH and Playwright and Edge installed. Set the ADB environment variable to the executable path if needed.
 
-### Prescriptions
-- `GET /api/v1/prescriptions/` - List prescriptions
-- `POST /api/v1/prescriptions/` - Add prescription
-- `POST /api/v1/prescriptions/scan-ocr` - Scan prescription image
-- `POST /api/v1/prescriptions/dose-log` - Log dose taken
+~~~powershell
+$env:RC_TEST_OFFLINE = '1'
+$env:RC_TEST_CLINIC_BROWSER = '1'
+.\backend\venv\Scripts\python.exe tools\verify-android.py
+~~~
 
-### Food
-- `POST /api/v1/food/scan` - Scan meal image
-- `POST /api/v1/food/log` - Manual food log
-- `GET /api/v1/food/log/today` - Today's food logs
+The test signs in a synthetic patient, saves a meal offline, restarts the app, and verifies exactly one receipt after reconnecting. Edge opens the linked patient, finds the meal, and finalizes a checkup. Reopening Records on Android must show the clinician’s new note. Use the refresh button if staff complete a checkup while Records is already open.
 
-### Voice Bot
-- `POST /api/v1/voice/session/start` - Start voice session
-- `POST /api/v1/voice/session/{id}/message` - Send voice message
-- `DELETE /api/v1/voice/session/{id}` - End session
+## Optional Google integration
 
-### Reminders
-- `GET /api/v1/reminders/` - List reminders
-- `POST /api/v1/reminders/` - Create reminder
-- `PATCH /api/v1/reminders/{id}/toggle` - Toggle reminder
-- `DELETE /api/v1/reminders/{id}` - Delete reminder
 
-### Clinician
-- `GET /api/v1/clinician/flags` - Get flagged patients
-- `PATCH /api/v1/clinician/flags/{id}/reviewed` - Mark as reviewed
-- `GET /api/v1/clinician/patients` - List assigned patients
+For the persistent server, paste your own Google AI Studio key after `GEMINI_API_KEY=` in `backend/.env` and restart the backend. The template selects `gemini-flash-latest`; change `GEMINI_MODEL` to select another supported model. The local demonstration always disables Gemini. Manual entry, sync and clinic reports run without a key. Live model responses and free-tier availability for a particular Google account require separate verification.
 
-## Architecture
+## Verification
 
-### Digital Twin
-The digital twin creates a personalized expected recovery curve based on:
-- Surgery/condition type (appendectomy, cholecystectomy, cardiac, knee replacement, etc.)
-- Age group
-- BMI
-- Lifestyle factors (smoking, chronic diseases)
+From `backend`, run `.\venv\Scripts\python.exe -m unittest discover -s tests -q`. To rehearse with a disposable PostgreSQL cluster, set `PG_BIN` to the installation's bin directory and run `.\venv\Scripts\python.exe tests/verify_postgres.py`. The Android build helper runs the Flutter widget tests before packaging. With Playwright and Edge or Chromium available, run `node tools/verify-clinic.cjs` from the repository root to regenerate the synthetic screenshot and handout.
 
-### Escalation System
-- **Level 0**: Normal recovery
-- **Level 1**: Slight deviation → In-app insight
-- **Level 2**: Sustained deviation → Suggest contacting provider
-- **Level 3**: Critical trend → Highlight in clinician dashboard
+The release packages support the local patient and clinic workflow. Real-patient operation still requires physical device checks, site-specific clinical review and a review of the operator's security, access, and retention practices. See [ACCEPTANCE.md](ACCEPTANCE.md) for the evidence.
 
-### AI Safety Rules
-- Never diagnose
-- Never suggest medication changes
-- Never use alarming language
-- Always suggest consulting provider if persistent
+## Reproduce the packages
 
-## Color Palette
+Run `tools/build-local-release.ps1` with Flutter, Android SDK and JAVA_HOME set to Java 17. The helper creates or reuses a local sideload signing identity. For an independently managed distribution key, use the release flags in the Android section. Run `backend/venv/Scripts/python.exe tools/package-windows.py` from a Windows checkout to bundle the tested interpreter and clinic dependencies. Run `tools/verify-station.py` with that Python to extract the ZIP and check the restored clinic.
 
-The app uses a calming, medical-neutral palette:
-- **Sage Green** - Primary brand color (#7CB69D)
-- **Soft Blue** - Secondary (#8CB8DE)
-- **Muted Lavender** - Accent (#B8A9C9)
-- **Warm White** - Background (#FAF8F5)
-- **Soft Gray** - Text secondary (#6B7280)
-
-## Supported Languages
-
-- English (en)
-- Hindi (hi)
-- Telugu (te)
-- Tamil (ta)
-
-## License
-
-Private - All rights reserved
-
-## Support
-
-For questions or issues, please contact the development team.
+For the container stack, set a URL-safe random RC_DB_PASSWORD in the process environment, and set a private persistent SECRET_KEY in backend/.env before starting Compose. The API binds to localhost. PostgreSQL and Redis stay on the private Compose network. Configure RC_API_HOSTS when connecting an HTTPS proxy.

@@ -32,7 +32,10 @@ class AppTextStyles {
   static const _fraunces = 'Fraunces';
   static const _dmSans = 'DMSans';
 
-  static TextStyle display({double size = 36, FontWeight weight = FontWeight.w300, Color? color}) =>
+  static TextStyle display(
+          {double size = 36,
+          FontWeight weight = FontWeight.w300,
+          Color? color}) =>
       TextStyle(
         fontFamily: _fraunces,
         fontSize: size,
@@ -42,7 +45,10 @@ class AppTextStyles {
         letterSpacing: -0.5,
       );
 
-  static TextStyle heading({double size = 24, FontWeight weight = FontWeight.w400, Color? color}) =>
+  static TextStyle heading(
+          {double size = 24,
+          FontWeight weight = FontWeight.w400,
+          Color? color}) =>
       TextStyle(
         fontFamily: _fraunces,
         fontSize: size,
@@ -51,7 +57,10 @@ class AppTextStyles {
         height: 1.2,
       );
 
-  static TextStyle body({double size = 15, FontWeight weight = FontWeight.w400, Color? color}) =>
+  static TextStyle body(
+          {double size = 15,
+          FontWeight weight = FontWeight.w400,
+          Color? color}) =>
       TextStyle(
         fontFamily: _dmSans,
         fontSize: size,
@@ -60,7 +69,10 @@ class AppTextStyles {
         height: 1.6,
       );
 
-  static TextStyle label({double size = 12, FontWeight weight = FontWeight.w500, Color? color}) =>
+  static TextStyle label(
+          {double size = 12,
+          FontWeight weight = FontWeight.w500,
+          Color? color}) =>
       TextStyle(
         fontFamily: _dmSans,
         fontSize: size,
@@ -139,12 +151,6 @@ ThemeData _buildAppTheme() {
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       hintStyle: AppTextStyles.body(color: AppColors.textLight),
-    ),
-    pageTransitionsTheme: const PageTransitionsTheme(
-      builders: {
-        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-      },
     ),
   );
 }

@@ -30,12 +30,14 @@ class ProfilePage extends ConsumerWidget {
             // Avatar
             Center(
               child: Container(
-                width: 88, height: 88,
+                width: 88,
+                height: 88,
                 decoration: BoxDecoration(
                   color: AppColors.sagePale,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person, color: AppColors.sage, size: 44),
+                child:
+                    const Icon(Icons.person, color: AppColors.sage, size: 44),
               ),
             ),
             const SizedBox(height: 16),
@@ -61,13 +63,15 @@ class ProfilePage extends ConsumerWidget {
                     if (patient['primary_condition'] != null)
                       Text(
                         patient['primary_condition'],
-                        style: AppTextStyles.caption(color: AppColors.textLight),
+                        style:
+                            AppTextStyles.caption(color: AppColors.textLight),
                         textAlign: TextAlign.center,
                       ),
                   ],
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              loading: () => const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2)),
               error: (_, __) => const Text('Could not load profile'),
             ),
 
@@ -82,17 +86,17 @@ class ProfilePage extends ConsumerWidget {
             _buildTile(
               icon: Icons.medication_outlined,
               label: 'My Medicines',
-              onTap: () => context.push('/prescription'),
+              onTap: () => context.go('/prescription'),
             ),
             _buildTile(
               icon: Icons.restaurant_outlined,
               label: 'Food Log',
-              onTap: () => context.push('/food'),
+              onTap: () => context.go('/food'),
             ),
             _buildTile(
               icon: Icons.insights_outlined,
               label: 'Recovery Trends',
-              onTap: () => context.push('/trends/pain'),
+              onTap: () => context.go('/trends/pain'),
             ),
 
             const SizedBox(height: 24),
@@ -105,8 +109,8 @@ class ProfilePage extends ConsumerWidget {
               label: 'Log out',
               color: AppColors.caution,
               onTap: () async {
-                final apiClient = ref.read(apiClientProvider);
-                await apiClient.clearTokens();
+                await ref.read(authServiceProvider).logout();
+                ref.invalidate(authStateProvider);
                 if (context.mounted) context.go('/login');
               },
             ),
@@ -132,7 +136,8 @@ class ProfilePage extends ConsumerWidget {
       child: ListTile(
         leading: Icon(icon, color: c),
         title: Text(label, style: AppTextStyles.body(color: c)),
-        trailing: Icon(Icons.arrow_forward_ios, size: 14, color: c.withAlpha(150)),
+        trailing:
+            Icon(Icons.arrow_forward_ios, size: 14, color: c.withAlpha(150)),
         onTap: onTap,
       ),
     );

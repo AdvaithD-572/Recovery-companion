@@ -31,11 +31,20 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (System.getenv("RC_KEYSTORE") != null) {
+            create("distribution") {
+                storeFile = file(System.getenv("RC_KEYSTORE"))
+                storePassword = System.getenv("RC_STORE_PASSWORD")
+                keyAlias = System.getenv("RC_KEY_ALIAS")
+                keyPassword = System.getenv("RC_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".patient"
+            signingConfig = signingConfigs.findByName("distribution")
             proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
     }
@@ -45,22 +54,6 @@ flutter {
     source = "../.."
 }
 
-configurations.all {
-    resolutionStrategy {
-        eachDependency {
-            if (requested.group == "androidx.core" && requested.name.startsWith("core")) {
-                useVersion("1.13.1")
-            }
-            if (requested.group == "androidx.activity") {
-                useVersion("1.9.3")
-            }
-            if (requested.group == "androidx.navigationevent") {
-                useVersion("1.0.0")
-            }
-        }
-    }
-}
-
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }

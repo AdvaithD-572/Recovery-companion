@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
 from app.core.config import settings
+from app.core.gemini import client as gemini_client
 from app.core.database import get_db
 from app.core.security import get_current_patient
 from app.models import Patient
@@ -52,7 +53,7 @@ async def localize_questions(
     try:
         from google import genai
         from google.genai import types as gtypes
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        client = gemini_client()
 
         questions_text = "\n".join([f"{i+1}. {q['text']}" for i, q in enumerate(questions)])
         prompt = f"""Translate these health check-in questions to the language with BCP-47 code: {language}
@@ -63,7 +64,7 @@ Questions to translate:
 {questions_text}"""
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=settings.GEMINI_MODEL,
             contents=prompt,
             config=gtypes.GenerateContentConfig(response_mime_type="application/json"),
         )
@@ -198,10 +199,8 @@ async def send_voice_message(
     session["history"] = history[-12:]   # keep last 6 turns (12 messages)
     session["log_complete"] = log_complete
 
-    # If log complete — auto-submit
     if log_complete:
-        await _auto_submit_log(db, patient, session["partial_log"])
-        bot_text += " I've saved your check-in for today. Take care!"
+        bot_text = "Your draft is ready. Review each value before saving your check-in."
 
     # Persist session
     await redis.setex(f"voice:{session_id}", SESSION_TTL, json.dumps(session))
@@ -226,34 +225,11 @@ async def end_voice_session(
     patient: Patient = Depends(get_current_patient),
     redis: aioredis.Redis = Depends(get_redis),
 ):
+    stored = await redis.get(f"voice:{session_id}")
+    if not stored or json.loads(stored).get("patient_id") != str(patient.id):
+        raise HTTPException(404, "Session not found")
     await redis.delete(f"voice:{session_id}")
     return {"status": "session closed"}
-
-
-async def _auto_submit_log(db: AsyncSession, patient: Patient, partial_log: dict):
-    from app.models import DailyLog
-    from app.tasks import analyze_trend_task
-    from datetime import date
-    from sqlalchemy import select, and_
-
-    # Check not already submitted today
-    existing = await db.execute(
-        select(DailyLog).where(
-            and_(DailyLog.patient_id == patient.id, DailyLog.log_date == date.today())
-        )
-    )
-    if existing.scalar_one_or_none():
-        return
-
-    log = DailyLog(
-        patient_id=patient.id,
-        log_date=date.today(),
-        submission_method="voice",
-        **{k: v for k, v in partial_log.items() if v is not None},
-    )
-    db.add(log)
-    await db.flush()
-    analyze_trend_task.delay(str(patient.id), str(log.id))
 
 
 async def _tts(text: str, language: str) -> Optional[str]:

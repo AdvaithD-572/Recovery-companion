@@ -58,7 +58,7 @@ async def get_current_patient(
     token = credentials.credentials
     payload = decode_token(token)
 
-    if payload.get("role") != "patient":
+    if payload.get("type") == "refresh" or payload.get("role") != "patient":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Patient access required",
@@ -79,9 +79,11 @@ async def get_current_patient(
             detail="Invalid patient ID in token",
         )
 
-    patient = await db.get(Patient, patient_uuid)
+    from sqlalchemy import select
+    from app.registry import ClosedProfile
+    patient = await db.scalar(select(Patient).where(Patient.id == patient_uuid).with_for_update())
 
-    if not patient:
+    if not patient or await db.get(ClosedProfile, patient_uuid):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient not found",
@@ -98,7 +100,7 @@ async def get_current_clinician(
     from sqlalchemy import select
 
     payload = decode_token(credentials.credentials)
-    if payload.get("role") != "clinician":
+    if payload.get("type") == "refresh" or payload.get("role") != "clinician":
         raise HTTPException(status_code=403, detail="Clinician access required")
 
     result = await db.execute(select(Clinician).where(Clinician.id == UUID(payload["sub"])))

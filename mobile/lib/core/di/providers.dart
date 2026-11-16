@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../shared/services/api_client.dart';
+import '../config/api_config.dart';
 import '../../shared/services/auth_service.dart';
 import '../../shared/services/offline_service.dart';
 
@@ -20,7 +21,10 @@ final userPrefsBoxProvider = Provider<Box>((ref) => Hive.box('user_prefs'));
 // ── API Client ───────────────────────────────────────────
 final apiClientProvider = Provider<ApiClient>((ref) {
   final storage = ref.watch(secureStorageProvider);
-  return ApiClient(storage: storage);
+  final origin = ref.watch(userPrefsBoxProvider).get('server', defaultValue: ApiConfig.baseUrl) as String;
+  final client = ApiClient(storage: storage, baseUrl: origin);
+  ref.onDispose(client.close);
+  return client;
 });
 
 // ── Auth Service ──────────────────────────────────────────
@@ -51,9 +55,17 @@ final connectivityProvider = StreamProvider<bool>((ref) async* {
   await Future.delayed(const Duration(seconds: 5));
 });
 
+// Each patient's view must re-fetch when another account signs in on this device.
+ApiClient watchPatientClient(Ref ref) {
+  ref.watch(authStateProvider.select((state) => state.value?.id));
+  return ref.watch(apiClientProvider);
+}
+
 // ── Patient Profile ───────────────────────────────────────
-final patientProfileProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, patientId) async {
-  final apiClient = ref.watch(apiClientProvider);
+final patientProfileProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>?, String>(
+        (ref, patientId) async {
+  final apiClient = watchPatientClient(ref);
   try {
     return await apiClient.get('/api/v1/patients/me');
   } catch (e) {
@@ -62,14 +74,15 @@ final patientProfileProvider = FutureProvider.family<Map<String, dynamic>?, Stri
 });
 
 // ── Daily Logs ────────────────────────────────────────────
-final dailyLogsProvider = FutureProvider.family<List<Map<String, dynamic>>, int>((ref, days) async {
-  final apiClient = ref.watch(apiClientProvider);
+final dailyLogsProvider =
+    FutureProvider.autoDispose.family<List<Map<String, dynamic>>, int>((ref, days) async {
+  final apiClient = watchPatientClient(ref);
   final response = await apiClient.get('/api/v1/logs/daily?days=$days');
   return List<Map<String, dynamic>>.from(response ?? []);
 });
 
-final todayLogProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
-  final apiClient = ref.watch(apiClientProvider);
+final todayLogProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+  final apiClient = watchPatientClient(ref);
   try {
     return await apiClient.get('/api/v1/logs/daily/today');
   } catch (e) {
@@ -78,28 +91,34 @@ final todayLogProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
 });
 
 // ── Prescriptions ─────────────────────────────────────────
-final prescriptionsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final apiClient = ref.watch(apiClientProvider);
-  final response = await apiClient.get('/api/v1/prescriptions/');
+final prescriptionsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final apiClient = watchPatientClient(ref);
+  final response = await apiClient.medicines();
   return List<Map<String, dynamic>>.from(response ?? []);
 });
 
 // ── Reminders ─────────────────────────────────────────────
-final remindersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final apiClient = ref.watch(apiClientProvider);
+final remindersProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final apiClient = watchPatientClient(ref);
   final response = await apiClient.get('/api/v1/reminders/');
   return List<Map<String, dynamic>>.from(response ?? []);
 });
 
 // ── Trends ────────────────────────────────────────────────
-final trendsProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, metric) async {
-  final apiClient = ref.watch(apiClientProvider);
-  return await apiClient.get('/api/v1/logs/trends/$metric');
+final trendsProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>, (String, int)>(
+        (ref, metric) async {
+  final apiClient = watchPatientClient(ref);
+  return await apiClient.get('/api/v1/logs/trends/${metric.$1}',
+      queryParams: {'days': metric.$2.toString()});
 });
 
 // ── Food Logs ─────────────────────────────────────────────
-final todayFoodLogsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final apiClient = ref.watch(apiClientProvider);
+final todayFoodLogsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final apiClient = watchPatientClient(ref);
   final response = await apiClient.get('/api/v1/food/log/today');
   return List<Map<String, dynamic>>.from(response ?? []);
 });

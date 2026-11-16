@@ -62,18 +62,18 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
 
   Future<void> _submit() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final apiClient = ref.read(apiClientProvider);
       final today = DateTime.now().toIso8601String().split('T')[0];
-      
-      await apiClient.post('/api/v1/logs/daily', body: {
+
+      final result = await apiClient.post('/api/v1/logs/daily', body: {
         'log_date': today,
         'pain_score': _painScore,
         'sleep_score': _sleepScore,
         'appetite_score': _appetiteScore,
         'mood_score': _moodScore,
-        'fatigue_score': _fatigueScore,
+        'fatigue_score': 10 - _fatigueScore,
         'mobility_score': _mobilityScore,
         'medicine_adherence': _medicineAdherence,
         'note': _noteController.text.isEmpty ? null : _noteController.text,
@@ -84,7 +84,7 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
       ref.invalidate(todayLogProvider);
 
       if (mounted) {
-        _showSuccessAndPop();
+        _showSuccessAndPop(result["queued"] == true);
       }
     } catch (e) {
       if (mounted) {
@@ -97,7 +97,7 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
     }
   }
 
-  void _showSuccessAndPop() {
+  void _showSuccessAndPop(bool queued) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -107,18 +107,22 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 80, height: 80,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 color: AppColors.sagePale,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle, color: AppColors.sage, size: 48),
+              child: const Icon(Icons.check_circle,
+                  color: AppColors.sage, size: 48),
             ),
             const SizedBox(height: 24),
             Text('Check-in complete!', style: AppTextStyles.heading()),
             const SizedBox(height: 8),
             Text(
-              'Great job tracking your recovery. See you tomorrow!',
+              queued
+                  ? 'Saved on this device. Open Today when online to sync.'
+                  : 'Your check-in has been saved.',
               style: AppTextStyles.body(color: AppColors.textMid),
               textAlign: TextAlign.center,
             ),
@@ -180,16 +184,20 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Row(
-              children: List.generate(_questions.length + 1, (i) => Expanded(
-                child: Container(
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    color: i <= _currentPage ? AppColors.sage : AppColors.sagePale,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              )),
+              children: List.generate(
+                  _questions.length + 1,
+                  (i) => Expanded(
+                        child: Container(
+                          height: 4,
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          decoration: BoxDecoration(
+                            color: i <= _currentPage
+                                ? AppColors.sage
+                                : AppColors.sagePale,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      )),
             ),
           ),
 
@@ -200,7 +208,10 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
               physics: const NeverScrollableScrollPhysics(),
               onPageChanged: (i) => setState(() => _currentPage = i),
               children: [
-                ..._questions.asMap().entries.map((entry) => _buildQuestionPage(entry.key)),
+                ..._questions
+                    .asMap()
+                    .entries
+                    .map((entry) => _buildQuestionPage(entry.key)),
                 _buildNotePage(),
               ],
             ),
@@ -217,8 +228,13 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
                 ElevatedButton(
                   onPressed: _isLoading ? null : _nextPage,
                   child: _isLoading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(_currentPage < _questions.length ? 'Continue' : 'Save'),
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(_currentPage < _questions.length
+                          ? 'Continue'
+                          : 'Save'),
                 ),
               ],
             ),
@@ -232,13 +248,26 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
     final question = _questions[index];
     int value;
     switch (index) {
-      case 0: value = _painScore; break;
-      case 1: value = _sleepScore; break;
-      case 2: value = _appetiteScore; break;
-      case 3: value = _moodScore; break;
-      case 4: value = _fatigueScore; break;
-      case 5: value = _mobilityScore; break;
-      default: value = 5;
+      case 0:
+        value = _painScore;
+        break;
+      case 1:
+        value = _sleepScore;
+        break;
+      case 2:
+        value = _appetiteScore;
+        break;
+      case 3:
+        value = _moodScore;
+        break;
+      case 4:
+        value = _fatigueScore;
+        break;
+      case 5:
+        value = _mobilityScore;
+        break;
+      default:
+        value = 5;
     }
 
     return Padding(
@@ -248,7 +277,8 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
         children: [
           const Spacer(),
           Container(
-            width: 64, height: 64,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
               color: AppColors.sagePale,
               borderRadius: BorderRadius.circular(20),
@@ -258,14 +288,17 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
           const SizedBox(height: 24),
           Text(question.title, style: AppTextStyles.heading(size: 28)),
           const SizedBox(height: 8),
-          Text(question.subtitle, style: AppTextStyles.body(color: AppColors.textMid)),
+          Text(question.subtitle,
+              style: AppTextStyles.body(color: AppColors.textMid)),
           const SizedBox(height: 48),
-          
+
           // Large slider
           Center(
             child: Column(
               children: [
-                Text('$value', style: AppTextStyles.display(size: 64, color: AppColors.sage)),
+                Text('$value',
+                    style:
+                        AppTextStyles.display(size: 64, color: AppColors.sage)),
                 Text(_getEmoji(value), style: const TextStyle(fontSize: 48)),
               ],
             ),
@@ -278,17 +311,30 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
             ),
             child: Slider(
               value: value.toDouble(),
-              min: 0, max: 10,
+              min: 0,
+              max: 10,
               divisions: 10,
               onChanged: (v) => setState(() {
                 final newValue = v.round();
                 switch (index) {
-                  case 0: _painScore = newValue; break;
-                  case 1: _sleepScore = newValue; break;
-                  case 2: _appetiteScore = newValue; break;
-                  case 3: _moodScore = newValue; break;
-                  case 4: _fatigueScore = newValue; break;
-                  case 5: _mobilityScore = newValue; break;
+                  case 0:
+                    _painScore = newValue;
+                    break;
+                  case 1:
+                    _sleepScore = newValue;
+                    break;
+                  case 2:
+                    _appetiteScore = newValue;
+                    break;
+                  case 3:
+                    _moodScore = newValue;
+                    break;
+                  case 4:
+                    _fatigueScore = newValue;
+                    break;
+                  case 5:
+                    _mobilityScore = newValue;
+                    break;
                 }
               }),
             ),
@@ -325,13 +371,15 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
             maxLines: 5,
             decoration: InputDecoration(
               hintText: 'How are you feeling today? Any observations...',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
             ),
           ),
           const SizedBox(height: 24),
-          
+
           // Medicine adherence
-          Text('Did you take your medicines today?', style: AppTextStyles.body(weight: FontWeight.w500)),
+          Text('Did you take your medicines today?',
+              style: AppTextStyles.body(weight: FontWeight.w500)),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -341,17 +389,25 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: _medicineAdherence == 10 ? AppColors.sagePale : AppColors.cream,
+                      color: _medicineAdherence == 10
+                          ? AppColors.sagePale
+                          : AppColors.cream,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: _medicineAdherence == 10 ? AppColors.sage : Colors.transparent,
+                        color: _medicineAdherence == 10
+                            ? AppColors.sage
+                            : Colors.transparent,
                       ),
                     ),
                     child: Column(
                       children: [
-                        Icon(Icons.check_circle, color: _medicineAdherence == 10 ? AppColors.sage : AppColors.textLight),
+                        Icon(Icons.check_circle,
+                            color: _medicineAdherence == 10
+                                ? AppColors.sage
+                                : AppColors.textLight),
                         const SizedBox(height: 8),
-                        Text('Yes, all', style: AppTextStyles.body(weight: FontWeight.w500)),
+                        Text('Yes, all',
+                            style: AppTextStyles.body(weight: FontWeight.w500)),
                       ],
                     ),
                   ),
@@ -364,17 +420,25 @@ class _QuestionnairePageState extends ConsumerState<QuestionnairePage> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: _medicineAdherence == 5 ? AppColors.cautionPale : AppColors.cream,
+                      color: _medicineAdherence == 5
+                          ? AppColors.cautionPale
+                          : AppColors.cream,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: _medicineAdherence == 5 ? AppColors.caution : Colors.transparent,
+                        color: _medicineAdherence == 5
+                            ? AppColors.caution
+                            : Colors.transparent,
                       ),
                     ),
                     child: Column(
                       children: [
-                        Icon(Icons.warning_amber, color: _medicineAdherence == 5 ? AppColors.caution : AppColors.textLight),
+                        Icon(Icons.warning_amber,
+                            color: _medicineAdherence == 5
+                                ? AppColors.caution
+                                : AppColors.textLight),
                         const SizedBox(height: 8),
-                        Text('Some missed', style: AppTextStyles.body(weight: FontWeight.w500)),
+                        Text('Some missed',
+                            style: AppTextStyles.body(weight: FontWeight.w500)),
                       ],
                     ),
                   ),
@@ -401,5 +465,6 @@ class _QuestionItem {
   final String subtitle;
   final IconData icon;
 
-  _QuestionItem({required this.title, required this.subtitle, required this.icon});
+  _QuestionItem(
+      {required this.title, required this.subtitle, required this.icon});
 }
